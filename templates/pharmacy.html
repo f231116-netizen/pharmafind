@@ -1,0 +1,166 @@
+<!doctype html>
+<html lang="en" dir="ltr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>PharmaFind for Pharmacies</title>
+  <link rel="icon" type="image/png" href="{{ url_for('static', filename='icons/favicon.png') }}">
+  <meta name="description" content="Find your medicine at the nearest pharmacy in Sulaymaniyah. Search by name or scan the box with AI, see alternatives and prices. Kurdish, Arabic and English.">
+  <meta name="theme-color" content="#5b2be0">
+  <link rel="manifest" href="{{ url_for('static', filename='manifest.webmanifest') }}">
+  <link rel="apple-touch-icon" href="{{ url_for('static', filename='icons/apple-touch-icon.png') }}">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="PharmaFind">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta property="og:type" content="website">
+  <meta property="og:title" content="PharmaFind: find your medicine at the nearest pharmacy">
+  <meta property="og:description" content="Search by name or scan the box with AI. See which pharmacies near you have it, prices and alternatives. کوردی · العربية · English">
+  <meta property="og:image" content="{{ url_for('static', filename='icons/og-card.png', _external=True) }}">
+  <meta property="og:image:width" content="1200">
+  <meta property="og:image:height" content="630">
+  <meta property="og:url" content="{{ request.url_root }}">
+  <meta name="twitter:card" content="summary_large_image">
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+  <link rel="stylesheet" href="{{ url_for('static', filename='pharmacy.css') }}">
+</head>
+<body class="ph-page">
+  <div id="lang-picker" class="lang-picker" hidden>
+    <div class="lang-card">
+      <div class="logo big">+</div>
+      <h2>PharmaFind</h2>
+      <p class="lang-hint">
+        <span dir="rtl">زمانێک هەڵبژێرە</span> · <span dir="rtl">اختر اللغة</span> · Choose a language
+      </p>
+      <div class="lang-options">
+        <button data-lang="ku" dir="rtl">کوردی</button>
+        <button data-lang="ar" dir="rtl">العربية</button>
+        <button data-lang="en">English</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Add a medicine to stock -->
+  <div id="edit-modal" class="modal" hidden>
+    <form id="edit-form" class="modal-card small" autocomplete="off">
+      <h3 data-i18n="ph_edit_title"></h3>
+      <label class="field">
+        <span data-i18n="ph_choose_medicine"></span>
+        <select id="edit-medicine" required></select>
+      </label>
+      <div class="field-row">
+        <label class="field">
+          <span data-i18n="col_price"></span>
+          <input id="edit-price" type="number" min="1" step="any" inputmode="numeric" required>
+          <small id="edit-price-hint" class="muted"></small>
+        </label>
+        <label class="field">
+          <span data-i18n="col_qty"></span>
+          <input id="edit-qty" type="number" min="0" step="1" inputmode="numeric" required>
+        </label>
+      </div>
+      <p id="edit-error" class="form-error" hidden></p>
+      <div class="map-actions">
+        <button class="btn-ghost" type="button" data-close data-i18n="cancel"></button>
+        <button class="btn-primary" type="submit" data-i18n="ph_save"></button>
+      </div>
+    </form>
+  </div>
+
+  <div id="toast" class="toast" role="status" hidden></div>
+  <div id="chart-tip" class="chart-tip" hidden></div>
+
+  <header class="top">
+    <div class="brand">
+      <div class="logo">+</div>
+      <div>
+        <h1>PharmaFind</h1>
+        <p class="tag" data-i18n="ph_tagline"></p>
+      </div>
+    </div>
+    <div class="top-actions">
+      <button id="lang-btn" class="lang-btn" type="button"></button>
+      <a class="check-link" href="/" data-i18n="ph_public_app"></a>
+      <button id="logout-btn" class="lang-btn" type="button" data-i18n="ph_logout" hidden></button>
+    </div>
+  </header>
+
+  <!-- Login -->
+  <main id="login-view" class="ph-login" hidden>
+    <form id="login-form" class="login-card">
+      <div class="logo big">+</div>
+      <h2 data-i18n="ph_login_title"></h2>
+      <p class="muted" data-i18n="ph_login_sub"></p>
+      <label class="field">
+        <span data-i18n="ph_username"></span>
+        <input id="login-user" autocomplete="username" autocapitalize="none" spellcheck="false" required>
+      </label>
+      <label class="field">
+        <span data-i18n="ph_password"></span>
+        <input id="login-pass" type="password" autocomplete="current-password" required>
+      </label>
+      <p id="login-error" class="form-error" hidden></p>
+      <button class="btn-primary full" type="submit" data-i18n="ph_login_btn"></button>
+      <p class="muted small" data-i18n="ph_demo_hint"></p>
+    </form>
+  </main>
+
+  <!-- Dashboard -->
+  <main id="dash-view" class="ph-main" hidden>
+    <section class="ph-head">
+      <div>
+        <h2 id="ph-name"></h2>
+        <p id="ph-address" class="muted"></p>
+      </div>
+      <div class="ph-filters">
+        <select id="f-days" aria-label="period"></select>
+        <select id="f-radius" aria-label="area"></select>
+      </div>
+    </section>
+
+    <nav class="tabs ph-tabs">
+      <button data-ptab="overview" class="on" data-i18n="ph_tab_overview"></button>
+      <button data-ptab="stock" data-i18n="ph_tab_stock"></button>
+    </nav>
+
+    <section id="tab-overview">
+      <div id="kpis" class="kpis"></div>
+      <div class="ph-grid">
+        <article class="card highlight" id="missed-card"></article>
+        <article class="card" id="daily-card"></article>
+        <article class="card wide" id="top-card"></article>
+        <article class="card" id="low-card"></article>
+        <article class="card" id="nf-card"></article>
+      </div>
+      <p class="muted small center" data-i18n="ph_demo_note"></p>
+    </section>
+
+    <section id="tab-stock" hidden>
+      <div class="stock-bar">
+        <input id="stock-filter" type="search" data-i18n-placeholder="ph_stock_filter">
+        <button id="add-btn" class="btn-primary" type="button">+ <span data-i18n="ph_add_medicine"></span></button>
+      </div>
+      <div class="card flush">
+        <table class="stock-table">
+          <thead>
+            <tr>
+              <th data-i18n="col_medicine"></th>
+              <th data-i18n="col_price"></th>
+              <th data-i18n="col_city"></th>
+              <th data-i18n="col_qty"></th>
+              <th data-i18n="col_status"></th>
+              <th data-i18n="col_updated"></th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody id="stock-body"></tbody>
+        </table>
+        <p id="stock-empty" class="none-box" hidden></p>
+      </div>
+    </section>
+  </main>
+
+  <script src="{{ url_for('static', filename='i18n.js') }}"></script>
+  <script src="{{ url_for('static', filename='pharmacy.js') }}"></script>
+</body>
+</html>

@@ -1,0 +1,14 @@
+# Render "Blueprint": tells Render how to run PharmaFind (free plan).
+services:
+  - type: web
+    name: pharmafind
+    runtime: docker
+    plan: free
+    healthCheckPath: /healthz
+    envVars:
+      - key: PHARMAFIND_LOW_CPU      # free plan = 1/10 of a CPU: lighter AI settings
+        value: "1"
+      - key: GUNICORN_THREADS
+        value: "4"
+      - key: SECRET_KEY
+        generateValue: true          # Render makes a random secret for the logins

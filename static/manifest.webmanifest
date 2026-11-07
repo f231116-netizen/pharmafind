@@ -1,0 +1,14 @@
+{
+  "name": "PharmaFind",
+  "short_name": "PharmaFind",
+  "description": "Find your medicine at the nearest pharmacy. Search by name or scan the box.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#f7f5fc",
+  "theme_color": "#5b2be0",
+  "icons": [
+    { "src": "/static/icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any maskable" },
+    { "src": "/static/icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" }
+  ]
+}

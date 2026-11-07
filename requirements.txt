@@ -1,0 +1,7 @@
+Flask>=3.0
+Flask-SQLAlchemy>=3.1
+# Phase 4 - AI scanner
+numpy>=2.0
+opencv-python-headless>=5.0
+zxing-cpp>=2.2
+waitress>=3.0

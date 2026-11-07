@@ -1,0 +1,145 @@
+/* PharmaFind - pharmacist dashboard (Phase 5). Builds on style.css. */
+.ph-page .top { padding: 14px 28px; }
+.top-actions .lang-btn[hidden] { display: none; }
+
+/* Login */
+.ph-login { display: grid; place-items: center; padding: 40px 16px; }
+.login-card {
+  width: 100%; max-width: 400px; background: var(--card); border: 1px solid var(--line);
+  border-radius: 18px; padding: 28px; display: grid; gap: 12px; text-align: center;
+  box-shadow: 0 16px 40px rgba(40, 20, 90, .08);
+}
+.login-card h2 { margin: 0; }
+.login-card p { margin: 0; }
+.field { display: grid; gap: 6px; text-align: start; font-size: .88rem; font-weight: 600; }
+.field input, .field select, .stock-bar input, .ph-filters select {
+  font: inherit; font-weight: 400; padding: 10px 12px; border: 1.5px solid var(--line);
+  border-radius: 10px; background: var(--card); color: var(--ink); outline: none; width: 100%;
+}
+.field input:focus, .field select:focus, .stock-bar input:focus, .ph-filters select:focus { border-color: var(--brand); box-shadow: 0 0 0 3px var(--brand-soft); }
+.field small { font-weight: 400; }
+.field-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.form-error { margin: 0; color: var(--warn); background: var(--warn-soft); padding: 8px 10px; border-radius: 8px; font-size: .88rem; }
+
+/* Layout */
+.ph-main { max-width: 1120px; margin: 0 auto; padding: 20px 28px 32px; }
+.ph-head { display: flex; justify-content: space-between; align-items: flex-end; gap: 16px; flex-wrap: wrap; margin-bottom: 8px; }
+.ph-head h2 { margin: 0; font-size: 1.5rem; }
+.ph-head p { margin: 2px 0 0; }
+.ph-filters { display: flex; gap: 8px; }
+.ph-filters select { width: auto; padding: 8px 10px; }
+.ph-tabs { padding: 0; margin-bottom: 16px; background: transparent; position: static; }
+.ph-tabs button { flex: none; padding: 10px 18px; font-size: 1rem; }
+.center { text-align: center; }
+
+.kpis { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 16px; }
+.kpi {
+  background: var(--card); border: 1px solid var(--line); border-radius: var(--radius);
+  padding: 14px 16px; display: grid; gap: 2px; align-content: start;
+}
+.kpi span { color: var(--muted); font-size: .85rem; }
+.kpi b { font-size: 2rem; line-height: 1.15; color: var(--ink); }
+.kpi small { color: var(--muted); font-size: .8rem; }
+.kpi .status { justify-self: start; margin-top: 4px; }
+
+.ph-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 14px; }
+.card { background: var(--card); border: 1px solid var(--line); border-radius: var(--radius); padding: 16px 18px; min-width: 0; }
+.card.wide { grid-column: 1 / -1; }
+.card.flush { padding: 0; overflow: hidden; }
+.card.highlight { border: 2px solid var(--brand); }
+.card h3 { margin: 0 0 4px; font-size: 1.05rem; }
+.card > p { margin: 0 0 10px; }
+
+/* Status chips: icon + label, never colour alone */
+.status { display: inline-flex; align-items: center; gap: 5px; white-space: nowrap; font-size: .78rem; font-weight: 700; padding: 3px 9px; border-radius: 999px; }
+.status b { font-size: .8rem; }
+.st-ok { background: var(--ok-soft); color: var(--ok); }
+.st-low { background: #fff6dc; color: #946200; }
+.st-out { background: var(--warn-soft); color: var(--warn); }
+.st-not_carried { background: var(--bg); color: var(--muted); border: 1px solid var(--line); }
+
+/* Simple lists */
+.rows { list-style: none; margin: 0; padding: 0; }
+.rows li { display: flex; align-items: center; gap: 10px; padding: 10px 0; border-bottom: 1px solid var(--line); }
+.rows li:last-child { border-bottom: 0; }
+.row-main { flex: 1; min-width: 0; display: grid; }
+
+/* Horizontal bars: most searched */
+.hbars { list-style: none; margin: 8px 0 0; padding: 0; display: grid; gap: 8px; }
+.hbars li { display: grid; grid-template-columns: minmax(110px, 180px) 1fr 36px 130px; align-items: center; gap: 10px; padding: 2px 0; border-radius: 6px; }
+.hbars li:hover { background: var(--bg); }
+.hb-name { font-weight: 600; font-size: .9rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.hb-track { height: 12px; }
+.hb-fill { display: block; height: 100%; min-width: 3px; background: var(--brand); border-radius: 0 4px 4px 0; }
+[dir="rtl"] .hb-fill { border-radius: 4px 0 0 4px; }
+.hb-val { font-weight: 700; font-size: .9rem; text-align: end; color: var(--ink); }
+.hbars .status { justify-self: start; }
+
+/* Column chart: searches per day */
+.cols { display: flex; align-items: flex-end; gap: 4px; height: 170px; margin-top: 8px; padding-top: 20px; padding-bottom: 1px; border-bottom: 1px solid var(--line); }
+.col { flex: 1; height: 100%; display: flex; flex-direction: column; justify-content: flex-end; align-items: center; position: relative; cursor: default; }
+.col-bar { position: relative; width: 100%; max-width: 34px; min-height: 2px; background: var(--brand); border-radius: 4px 4px 0 0; }
+.col:hover .col-bar { background: var(--brand-dark); }
+.col-peak { position: absolute; bottom: 100%; left: 50%; transform: translateX(-50%); margin-bottom: 3px; font-size: .78rem; font-weight: 700; color: var(--ink); }
+.col-labels { display: flex; gap: 4px; margin-top: 4px; }
+.col-labels span { flex: 1; text-align: center; font-size: .72rem; color: var(--muted); }
+.chart-tip {
+  position: fixed; z-index: 7000; pointer-events: none; background: var(--ink); color: #fff;
+  font-size: .8rem; font-weight: 600; padding: 5px 9px; border-radius: 6px; white-space: nowrap;
+}
+
+/* Stock table */
+.stock-bar { display: flex; gap: 10px; margin-bottom: 12px; }
+.stock-bar input { flex: 1; }
+.stock-bar .btn-primary { flex: none; }
+.stock-table { width: 100%; border-collapse: collapse; font-size: .92rem; }
+.stock-table th { text-align: start; font-size: .78rem; text-transform: uppercase; letter-spacing: .3px; color: var(--muted); background: var(--bg); padding: 10px 12px; }
+.stock-table td { padding: 10px 12px; border-top: 1px solid var(--line); vertical-align: middle; }
+.stock-table tr.error td { background: var(--warn-soft); }
+.in-price { width: 110px; font: inherit; padding: 7px 9px; border: 1.5px solid var(--line); border-radius: 8px; }
+.in-price:focus, .in-qty:focus { outline: none; border-color: var(--brand); }
+.stepper { display: inline-flex; align-items: center; border: 1.5px solid var(--line); border-radius: 8px; overflow: hidden; }
+.stepper button { border: 0; background: var(--bg); width: 32px; height: 34px; font-size: 1.1rem; color: var(--brand); }
+.stepper button:hover { background: var(--brand-soft); }
+.in-qty { width: 56px; border: 0; text-align: center; font: inherit; padding: 6px 2px; -moz-appearance: textfield; }
+.in-qty::-webkit-inner-spin-button { -webkit-appearance: none; }
+.note { display: block; font-size: .75rem; font-weight: 600; }
+.note.up { color: var(--warn); }
+.note.down { color: var(--ok); }
+.remove-btn { border: 1px solid var(--line); background: var(--card); color: var(--muted); border-radius: 8px; padding: 5px 10px; font-size: .82rem; }
+.remove-btn:hover { color: var(--warn); border-color: var(--warn); }
+.remove-btn.confirm { background: var(--warn); border-color: var(--warn); color: #fff; }
+.upd { min-width: 90px; }
+
+@media (max-width: 900px) {
+  .kpis { grid-template-columns: 1fr 1fr; }
+  .ph-grid { grid-template-columns: 1fr; }
+  .hbars li { grid-template-columns: minmax(90px, 1fr) 1.2fr 30px; }
+  .hbars .status { grid-column: 1 / -1; }
+}
+@media (max-width: 760px) {
+  .ph-page .top { padding: 12px 16px; gap: 10px; }
+  .ph-page .brand { gap: 10px; min-width: 0; }
+  .ph-page .brand h1 { font-size: 1.15rem; }
+  .ph-page .logo { width: 36px; height: 36px; font-size: 26px; flex: none; }
+  .ph-page .top-actions .check-link { display: none; }
+  .ph-page .lang-btn { padding: 5px 10px; font-size: .82rem; white-space: nowrap; }
+  .rows li { flex-wrap: wrap; }
+  .rows li .row-main { flex-basis: 100%; }
+  .ph-main { padding: 16px; }
+  .ph-page .tag { display: none; }
+  .top-actions { gap: 8px; }
+  .stock-bar { flex-direction: column; }
+  /* table becomes one card per medicine */
+  .stock-table thead { display: none; }
+  .stock-table, .stock-table tbody, .stock-table tr, .stock-table td { display: block; width: 100%; }
+  .stock-table tr { border-top: 1px solid var(--line); padding: 10px 14px; display: grid; grid-template-columns: 1fr 1fr; gap: 8px 12px; }
+  .stock-table td { border: 0; padding: 0; }
+  .stock-table td:first-child { grid-column: 1 / -1; }
+  .stock-table td[data-label]:not(:first-child)::before { content: attr(data-label); display: block; font-size: .72rem; color: var(--muted); text-transform: uppercase; margin-bottom: 2px; }
+  .in-price { width: 100%; }
+  .field-row { grid-template-columns: 1fr; }
+}
+
+/* iPhone "Add to Home Screen": keep the header clear of the status bar */
+.ph-page .top { padding-top: max(14px, env(safe-area-inset-top)); }

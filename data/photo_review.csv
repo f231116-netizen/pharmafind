@@ -1,0 +1,17 @@
+﻿photo_folder,brand_name,active_ingredient,strength,form,company,pack,barcode,barcode_type,status_in_app,relation_to_app,price_on_kmca_sticker_iqd,to_check
+adol,Adol Drops,Paracetamol,100 mg/mL,oral drops,Julphar,15 mL,6291100081394,EAN-13,in app (added),Panadol/Adol: different form,3000,
+Allercet,Allercet,Cetirizine,10 mg,tablet,Micro Labs,3x10 tablets,8901302097748,EAN-13 (typed from box),in app (added),exact alternative to Zyrtec / Cetirizine,,
+Amoxicillin,Amoxicillin Normon,Amoxicillin,500 mg,capsule,Laboratorios Normon (Spain),20 hard capsules,8435232317558,EAN-13,in app (added),exact alternative to Amoxil / Amoxicillin,,
+avodol,Avodol,Paracetamol,1000 mg,tablet,AVO,10 tablets,8904187888753,EAN-13 (typed from box),in app (added),Panadol: different strength,,
+Brufen,Brufen,Ibuprofen,400 mg,tablet,Abbott,,8002660035349,EAN-13 + GS1 DataMatrix,already in app,same product,,
+fexet,Fexet,Fexofenadine,180 mg,tablet,Getz Pharma,20 film-coated tablets,8964003535193,EAN-13,in app (added),Telfast 120: different strength,,
+gasec,Gasec,Omeprazole,20 mg,capsule,Acino,14 gastro-resistant capsules,7640153082848,EAN-13,in app (added),exact alternative to Losec / Omeprazole / Ome TAD,,
+Hyoscine-N-Butylbromide,Hyoscine-N-Butylbromide,Hyoscine butylbromide,20 mg/mL,injection,Alborz Darou,10 ampoules x 1 mL,,,in app (added),Buscopan: different strength and form,,no barcode on this box
+IBUPROFEN,Ibuprofen Suspension,Ibuprofen,100 mg/5 mL,oral suspension,Hayat Drug Production Co. (Baghdad),100 mL,501862012802020,Code 128,in app (added),Brufen: different form,,
+Klavmark,Clavmark 1000,Amoxicillin + Clavulanic acid,1000 mg,tablet,Marksans Pharma,10 tablets,8906044906501,EAN-13,in app (added),Augmentin 625: different strength,5000,mg split not printed on the front (often 875 + 125)
+Claritine,Claritine,Loratadine,10 mg,tablet,Bayer,10 tablets,6285074003414,GS1 DataMatrix,already in app,same product,,
+Nexium,Nexium 20,Esomeprazole,20 mg,tablet,AstraZeneca,14 tablets,5000456060479,EAN-13 + GS1 DataMatrix,in app (added),Nexium 40: different strength,,box also shows 9010410060519
+olfen,Olfen-50,Diclofenac sodium,50 mg,tablet,Acino,20 gastro-resistant tablets,7640153080653,EAN-13,in app (added),exact alternative to Voltaren / Diclofenac,,
+Ome TAD,Ome TAD,Omeprazole,20 mg,capsule,TAD Pharma (Germany),15 gastro-resistant capsules,4260108281961,EAN-13,in app (added),exact alternative to Losec / Omeprazole / Gasec,,
+Piodol,Piodol Advance,Paracetamol,500 mg,tablet,Pioneer (Iraq),20 film-coated tablets,6251875001287,EAN-13,in app (added),exact alternative to Panadol / Adol tablets,,
+voltastar-k,Voltastar-K,Diclofenac potassium,50 mg,sachet,Ibn Al Haytham Pharma (barcode registered in Syria),,6211736204455,EAN-13 (typed from box),in app (added),"not matched: potassium salt, not sodium",,

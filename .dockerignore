@@ -1,0 +1,9 @@
+venv/
+instance/
+__pycache__/
+*.pyc
+.vscode/
+.git/
+tools/
+Claude outputs/
+*.zip

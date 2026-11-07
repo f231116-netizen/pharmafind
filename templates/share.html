@@ -1,0 +1,78 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Try PharmaFind</title>
+  <link rel="icon" type="image/png" href="{{ url_for('static', filename='icons/favicon.png') }}">
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+  <style>
+    body { background: var(--bg); }
+    .share { max-width: 760px; margin: 0 auto; padding: 32px 20px 40px; text-align: center; }
+    .share h1 { font-size: 2.2rem; margin: 8px 0 4px; }
+    .share .rtl-line { font-size: 1.35rem; margin: 2px 0; color: var(--ink); }
+    .share .brand-big { display: inline-flex; align-items: center; gap: 14px; font-size: 1.6rem; font-weight: 800; color: var(--brand-dark); }
+    .share .brand-big .logo { background: var(--brand); color: #fff; }
+    .qr-box { display: inline-block; background: #fff; padding: 22px; border-radius: 24px; margin: 22px 0 10px;
+              border: 3px solid var(--brand); box-shadow: 0 16px 40px rgba(40, 20, 90, .12); }
+    #qr svg { display: block; width: min(70vw, 380px); height: auto; }
+    .url { font-family: ui-monospace, Consolas, monospace; font-size: 1.05rem; word-break: break-all; color: var(--brand-dark); margin: 6px 0 20px; }
+    .steps { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin: 10px 0 24px; }
+    .step { background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 14px 10px; }
+    .step b { display: grid; place-items: center; width: 34px; height: 34px; border-radius: 50%; background: var(--brand); color: #fff; margin: 0 auto 8px; }
+    .step p { margin: 2px 0; font-size: .92rem; }
+    .features { color: var(--muted); font-size: .95rem; margin: 0 0 20px; }
+    .actions { display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; }
+    @media (max-width: 560px) { .steps { grid-template-columns: 1fr; } .share h1 { font-size: 1.7rem; } }
+    @media print {
+      .actions { display: none; }
+      body { background: #fff; }
+      .share { padding-top: 10mm; }
+      .qr-box { box-shadow: none; }
+      #qr svg { width: 105mm; }
+      @page { size: A4 portrait; margin: 12mm; }
+    }
+  </style>
+</head>
+<body>
+  <main class="share">
+    <div class="brand-big"><span class="logo">+</span> PharmaFind</div>
+    <h1>Try it on your phone</h1>
+    <p class="rtl-line" dir="rtl">بە مۆبایلەکەت تاقی بکەرەوە</p>
+    <p class="rtl-line" dir="rtl">جرّبه على هاتفك</p>
+
+    <div class="qr-box"><div id="qr" role="img" aria-label="QR code"></div></div>
+    <p class="url" id="url"></p>
+
+    <div class="steps">
+      <div class="step"><b>1</b><p>Open your camera</p><p dir="rtl">کامێراکەت بکەرەوە</p><p dir="rtl">افتح الكاميرا</p></div>
+      <div class="step"><b>2</b><p>Point it at the code</p><p dir="rtl">بەرەو کۆدەکەی بگرە</p><p dir="rtl">وجّهها نحو الرمز</p></div>
+      <div class="step"><b>3</b><p>Tap the link</p><p dir="rtl">لەسەر بەستەرەکە دابگرە</p><p dir="rtl">اضغط على الرابط</p></div>
+    </div>
+    <p class="features">Search medicines · AI box scanner · Nearest pharmacy · Alternatives<br>
+      <span dir="rtl">کوردی · العربية · English</span></p>
+
+    <div class="actions">
+      <button class="btn-primary" type="button" onclick="window.print()">Print</button>
+      <button class="btn-ghost" type="button" id="copy">Copy link</button>
+      <a class="btn-ghost" href="/">Open the app</a>
+    </div>
+  </main>
+
+  <script src="{{ url_for('static', filename='vendor/qrcode/qrcode.js') }}"></script>
+  <script>
+    // The QR code points to this website's own address, or to ?url=... if given.
+    let target = location.origin + "/";
+    const given = new URLSearchParams(location.search).get("url");
+    if (given && /^https?:\/\/[^\s"<>]+$/i.test(given)) target = given;
+    const qr = qrcode(0, "M");              // auto size, medium error correction
+    qr.addData(target);
+    qr.make();
+    document.getElementById("qr").innerHTML = qr.createSvgTag({ cellSize: 8, margin: 0, scalable: true });
+    document.getElementById("url").textContent = target.replace(/\/$/, "");
+    document.getElementById("copy").addEventListener("click", async (e) => {
+      try { await navigator.clipboard.writeText(target); e.target.textContent = "Copied ✓"; } catch { /* ignore */ }
+    });
+  </script>
+</body>
+</html>

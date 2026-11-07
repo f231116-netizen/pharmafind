@@ -1,0 +1,10 @@
+# Keep Linux line endings for files that run on the server (Render/Docker)
+*.sh text eol=lf
+Dockerfile text eol=lf
+*.yaml text eol=lf
+# Windows batch files need Windows line endings
+*.bat text eol=crlf
+# Binary files
+*.onnx binary
+*.jpg binary
+*.png binary

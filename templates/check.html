@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>PharmaFind - Phase 1</title>
+  <style>
+    body { font-family: system-ui, sans-serif; max-width: 960px; margin: 2rem auto; padding: 0 1rem; color: #1d1d27; }
+    h1 { margin-bottom: .2rem; }
+    .muted { color: #666; }
+    .cards { display: flex; gap: 1rem; margin: 1.5rem 0; }
+    .card { flex: 1; background: #f3f0fb; border-radius: 10px; padding: 1rem; text-align: center; }
+    .card b { display: block; font-size: 2rem; color: #4b2aa8; }
+    table { width: 100%; border-collapse: collapse; font-size: .92rem; }
+    th, td { text-align: left; padding: .45rem .5rem; border-bottom: 1px solid #e4e1ee; }
+    th { background: #4b2aa8; color: #fff; }
+    .rx { background: #ffe3e3; color: #a00; padding: 1px 6px; border-radius: 4px; font-size: .8rem; }
+    a { color: #4b2aa8; }
+    .real { background: #e3f6ed; color: #12925c; padding: 1px 6px; border-radius: 4px; font-size: .8rem; }
+  </style>
+</head>
+<body>
+  <h1>PharmaFind</h1>
+  <p class="muted">Phase 1 check: the database is connected and seeded.</p>
+
+  <div class="cards">
+    <div class="card"><b>{{ counts.pharmacies }}</b>Pharmacies</div>
+    <div class="card"><b>{{ counts.medicines }}</b>Medicines</div>
+    <div class="card"><b>{{ counts.stock }}</b>Stock rows</div>
+  </div>
+
+  <p>API: <a href="/api/pharmacies">/api/pharmacies</a> · <a href="/api/medicines">/api/medicines</a> · <a href="/api/search?q=panadl">/api/search?q=panadl</a> · <a href="/api/medicines/1/pharmacies">/api/medicines/1/pharmacies</a> · <a href="/">Back to app</a></p>
+
+  <table>
+    <tr><th>#</th><th>Brand</th><th>Kurdish</th><th>Active ingredient</th><th>Strength</th><th>Form</th><th>Company</th><th>Barcode</th><th></th></tr>
+    {% for m in medicines %}
+    <tr>
+      <td>{{ m.id }}</td>
+      <td><a href="/api/medicines/{{ m.id }}/pharmacies">{{ m.brand_name }}</a></td>
+      <td dir="rtl">{{ m.name_ku }}</td>
+      <td>{{ m.active_ingredient }}</td>
+      <td>{{ m.strength }}</td>
+      <td>{{ m.form }}</td>
+      <td>{{ m.company }}</td>
+      <td style="font-family:monospace;font-size:.8rem">{% for b in m.barcodes %}{{ b.code }}<br>{% endfor %}</td>
+      <td>{% if m.from_real_box %}<span class="real">box</span> {% endif %}{% if m.rx_required %}<span class="rx">Rx</span>{% endif %}</td>
+    </tr>
+    {% else %}
+    <tr><td colspan="9">No medicines yet. Run <code>python seed.py</code>.</td></tr>
+    {% endfor %}
+  </table>
+</body>
+</html>

@@ -1,0 +1,158 @@
+<!doctype html>
+<html lang="en" dir="ltr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>PharmaFind</title>
+  <link rel="icon" type="image/png" href="{{ url_for('static', filename='icons/favicon.png') }}">
+  <meta name="description" content="Find your medicine at the nearest pharmacy in Sulaymaniyah. Search by name or scan the box with AI, see alternatives and prices. Kurdish, Arabic and English.">
+  <meta name="theme-color" content="#5b2be0">
+  <link rel="manifest" href="{{ url_for('static', filename='manifest.webmanifest') }}">
+  <link rel="apple-touch-icon" href="{{ url_for('static', filename='icons/apple-touch-icon.png') }}">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="PharmaFind">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta property="og:type" content="website">
+  <meta property="og:title" content="PharmaFind: find your medicine at the nearest pharmacy">
+  <meta property="og:description" content="Search by name or scan the box with AI. See which pharmacies near you have it, prices and alternatives. کوردی · العربية · English">
+  <meta property="og:image" content="{{ url_for('static', filename='icons/og-card.png', _external=True) }}">
+  <meta property="og:image:width" content="1200">
+  <meta property="og:image:height" content="630">
+  <meta property="og:url" content="{{ request.url_root }}">
+  <meta name="twitter:card" content="summary_large_image">
+  <link rel="stylesheet" href="{{ url_for('static', filename='vendor/leaflet/leaflet.css') }}">
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+  <!-- Language picker: shown on first visit, and when the header button is clicked -->
+  <div id="lang-picker" class="lang-picker" hidden>
+    <div class="lang-card">
+      <div class="logo big">+</div>
+      <h2>PharmaFind</h2>
+      <p class="lang-hint">
+        <span dir="rtl">زمانێک هەڵبژێرە</span> · <span dir="rtl">اختر اللغة</span> · Choose a language
+      </p>
+      <div class="lang-options">
+        <button data-lang="ku" dir="rtl">کوردی</button>
+        <button data-lang="ar" dir="rtl">العربية</button>
+        <button data-lang="en">English</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Location choice: this device's location, or pick on the map -->
+  <div id="loc-chooser" class="modal" hidden>
+    <div class="modal-card small">
+      <h3 data-i18n="loc_choose_title"></h3>
+      <button class="choice" id="loc-device" type="button">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3"/><circle cx="12" cy="12" r="8"/></svg>
+        <span><b data-i18n="loc_opt_device"></b><small data-i18n="loc_opt_device_desc"></small></span>
+      </button>
+      <button class="choice" id="loc-manual" type="button">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 4 3 6v14l6-2 6 2 6-2V4l-6 2-6-2Z"/><path d="M9 4v14M15 6v14"/></svg>
+        <span><b data-i18n="loc_opt_map"></b><small data-i18n="loc_opt_map_desc"></small></span>
+      </button>
+      <button class="btn-ghost full" type="button" data-close data-i18n="cancel"></button>
+    </div>
+  </div>
+
+  <!-- Map pop-up: used for directions and for picking your location manually -->
+  <div id="map-modal" class="modal" hidden>
+    <div class="modal-card map-card">
+      <div class="map-head">
+        <h3 id="map-title"></h3>
+        <button class="icon-btn" type="button" data-close data-i18n-label="close">&times;</button>
+      </div>
+      <!-- the map always stays left-to-right, even in Kurdish/Arabic -->
+      <div class="map-box" dir="ltr"><div id="map"></div></div>
+      <div class="map-foot" id="map-foot"></div>
+    </div>
+  </div>
+
+  <!-- AI scanner: live barcode scanning + photo recognition -->
+  <div id="scan-modal" class="modal" hidden>
+    <div class="modal-card scan-card">
+      <div class="map-head">
+        <h3 data-i18n="scan_title"></h3>
+        <button class="icon-btn" type="button" data-close data-i18n-label="close">&times;</button>
+      </div>
+      <div class="scan-view" dir="ltr">
+        <video id="scan-video" playsinline muted></video>
+        <img id="scan-preview" alt="" hidden>
+        <div class="scan-frame" aria-hidden="true"><i></i><i></i><i></i><i></i></div>
+        <div id="scan-cam-msg" class="scan-cam-msg" hidden></div>
+        <div id="scan-busy" class="scan-busy" hidden><span class="spinner"></span></div>
+      </div>
+      <div class="scan-foot">
+        <p id="scan-status" class="scan-status"></p>
+        <div id="scan-result"></div>
+        <div class="map-actions">
+          <label class="btn-ghost" for="scan-file"><span data-i18n="scan_upload"></span></label>
+          <input id="scan-file" type="file" accept="image/*" hidden>
+          <button id="scan-capture" class="btn-primary" type="button" data-i18n="scan_capture"></button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div id="toast" class="toast" role="status" hidden></div>
+
+  <header class="top">
+    <div class="brand">
+      <div class="logo">+</div>
+      <div>
+        <h1>PharmaFind</h1>
+        <p class="tag" data-i18n="tagline"></p>
+      </div>
+    </div>
+    <div class="top-actions">
+      <button id="lang-btn" class="lang-btn" type="button"></button>
+      <a class="check-link" href="/pharmacy" data-i18n="ph_link"></a>
+      <a class="check-link" href="/check" data-i18n="data"></a>
+    </div>
+  </header>
+
+  <section class="search-wrap">
+    <div class="search-row">
+      <div class="search-box">
+        <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+        <input id="q" type="search" autocomplete="off" spellcheck="false" data-i18n-placeholder="placeholder">
+        <ul id="suggestions" class="suggestions" role="listbox" hidden></ul>
+      </div>
+      <button id="scan-btn" class="scan-btn" type="button">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 8V5a1 1 0 0 1 1-1h3M16 4h3a1 1 0 0 1 1 1v3M20 16v3a1 1 0 0 1-1 1h-3M8 20H5a1 1 0 0 1-1-1v-3"/><path d="M7 9v6M10 9v6M13 9v6M16 9v6"/></svg>
+        <span data-i18n="scan"></span>
+      </button>
+    </div>
+    <div class="location-bar">
+      <button id="locate" type="button">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 22s7-6.2 7-12a7 7 0 1 0-14 0c0 5.8 7 12 7 12Z"/><circle cx="12" cy="10" r="2.5"/></svg>
+        <span data-i18n="locate"></span>
+      </button>
+      <span id="loc-status" class="muted"></span>
+    </div>
+  </section>
+
+  <main class="layout">
+    <section class="panel" id="panel">
+      <div id="empty" class="empty">
+        <h2 data-i18n="empty_title"></h2>
+        <p data-i18n="empty_text"></p>
+        <div class="chips" id="chips"></div>
+      </div>
+      <div id="results" hidden></div>
+    </section>
+  </main>
+
+  <footer class="foot" data-i18n="footer"></footer>
+
+  <script>
+    window.PF_DEFAULT = { lat: {{ default_lat }}, lng: {{ default_lng }} };
+  </script>
+  <script src="{{ url_for('static', filename='vendor/leaflet/leaflet.js') }}"></script>
+  <script src="{{ url_for('static', filename='i18n.js') }}"></script>
+  <script src="{{ url_for('static', filename='app.js') }}"></script>
+  <script src="{{ url_for('static', filename='scan.js') }}"></script>
+</body>
+</html>
