@@ -509,6 +509,23 @@ button { font: inherit; cursor: pointer; }
   .basket-fab { bottom: max(16px, env(safe-area-inset-bottom)); inset-inline-end: 16px; padding: 11px 16px; }
 }
 
+/* ---------- Phase 8: prescription photo ---------- */
+.reserve-note.info { background: var(--brand-soft); color: var(--brand-dark); }
+.ord-item-main .badge { font-size: .68rem; padding: 1px 7px; vertical-align: middle; }
+.rx-box { display: grid; gap: 8px; padding: 12px; border: 2px solid var(--warn-soft); border-radius: 12px; background: #fffaf6; }
+.rx-box p { margin: 0; }
+.rx-pick { gap: 8px; cursor: pointer; }
+.rx-pick svg { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linejoin: round; }
+.rx-preview { display: flex; gap: 12px; align-items: center; }
+.rx-preview img { width: 92px; height: 110px; object-fit: cover; border-radius: 8px; border: 1px solid var(--line); background: var(--bg); }
+.rx-preview-actions { display: grid; gap: 6px; justify-items: start; }
+.rx-preview-actions .link-btn { cursor: pointer; }
+.rx-line { margin: 0; display: flex; justify-content: space-between; gap: 10px; font-size: .88rem; font-weight: 600; padding: 6px 10px; border-radius: 8px; }
+.rx-line a { color: var(--brand); white-space: nowrap; }
+.rx-waiting { background: #fff6dc; color: #946200; }
+.rx-approved { background: var(--ok-soft); color: var(--ok); }
+.rx-rejected { background: var(--warn-soft); color: var(--warn); }
+
 /* Small phones: keep the header on one line */
 @media (max-width: 600px) {
   .top .tag { display: none; }

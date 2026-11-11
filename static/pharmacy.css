@@ -161,3 +161,19 @@
 .btn-primary.danger { background: var(--warn); }
 .btn-primary.danger:hover { background: #8f3608; }
 .ph-order .form-error { margin: 0; }
+
+/* ---------- Prescription check (Phase 8) ---------- */
+.ph-order .ord-top .badge { margin-inline-start: 6px; }
+.rx-thumb { display: flex; align-items: center; gap: 12px; padding: 6px; border: 1px solid var(--line); border-radius: 10px; background: var(--bg); color: var(--brand); font-weight: 600; font-size: .85rem; text-align: start; }
+.rx-thumb:hover { border-color: var(--brand); }
+.rx-thumb img { width: 72px; height: 88px; object-fit: cover; border-radius: 6px; background: #fff; flex: none; }
+.rx-check { display: grid; gap: 6px; padding: 10px 12px; border: 2px solid var(--brand-soft); border-radius: 10px; }
+.chk { display: flex; align-items: flex-start; gap: 8px; font-size: .88rem; cursor: pointer; }
+.chk input { width: 18px; height: 18px; margin: 1px 0 0; flex: none; accent-color: var(--brand); }
+.chk.paper { flex-basis: 100%; font-weight: 600; background: #fff6dc; color: #946200; padding: 8px 10px; border-radius: 8px; }
+.rx-check .field-row { margin-top: 4px; grid-template-columns: 1fr; gap: 8px; }
+.rx-card { max-width: 760px; overflow: hidden; display: flex; flex-direction: column; max-height: calc(100vh - 32px); max-height: calc(100dvh - 32px); }
+.rx-card > p { margin: 8px 16px 12px; }
+.rx-view { overflow: auto; background: #1c1830; display: grid; place-items: center; min-height: 200px; }
+.rx-view img { display: block; max-width: 100%; max-height: calc(100dvh - 160px); cursor: zoom-in; }
+.rx-view img.zoomed { max-width: none; max-height: none; cursor: zoom-out; }

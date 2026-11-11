@@ -10,6 +10,7 @@ Tables:
   login_codes - the one-time codes sent to phones (only a hash is stored)  (Phase 6)
   orders      - reservations: a customer reserves medicines at one pharmacy and picks them up (Phase 7)
   order_items - the medicines in each reservation, with the price at that moment  (Phase 7)
+  prescriptions - the photo of a doctor's prescription for a reservation, and the pharmacist's check (Phase 8)
 
 seed.py resets the demo tables (and the reservations, which belong to the demo pharmacies).
 users and login_codes are never wiped by it.
@@ -18,6 +19,7 @@ from datetime import datetime, timezone
 
 import sqlalchemy as sa
 from flask_sqlalchemy import SQLAlchemy
+from sqlalchemy.orm import deferred
 from werkzeug.security import generate_password_hash, check_password_hash
 
 db = SQLAlchemy()
@@ -255,6 +257,8 @@ class Order(db.Model):
     pharmacy = db.relationship("Pharmacy")
     items = db.relationship("OrderItem", back_populates="order", cascade="all, delete-orphan",
                             order_by="OrderItem.id")
+    prescription = db.relationship("Prescription", back_populates="order", uselist=False,
+                                   cascade="all, delete-orphan")
 
     def to_dict(self):
         return {
@@ -271,6 +275,7 @@ class Order(db.Model):
             "cancelled_by": self.cancelled_by,
             "cancel_reason": self.cancel_reason,
             "items": [i.to_dict() for i in self.items],
+            "prescription": self.prescription.to_dict() if self.prescription else None,
         }
 
 
@@ -290,10 +295,55 @@ class OrderItem(db.Model):
         return {"medicine": self.medicine.to_dict(), "quantity": self.quantity, "price_iqd": self.price_iqd}
 
 
-# Tables that seed.py deletes and rebuilds. Reservations are included because they point
-# at demo pharmacies and medicines (after a reset those ids belong to other rows).
+# ---------------------------------------------------------------- Phase 8: prescriptions
+class Prescription(db.Model):
+    """The photo of a doctor's prescription, sent with a reservation that has prescription medicines.
+
+    The app can't prove a prescription is real. The PHARMACIST checks it (stamp, signature, date,
+    patient's name, medicine), writes down the doctor's name and date, and approves or rejects it.
+    At pickup the customer shows the original paper, and the pharmacist keeps or stamps it.
+
+    Privacy: the photo is kept inside the database (never at a public address), only the customer
+    and that one pharmacy can open it, and it is deleted as soon as the reservation is finished.
+    The fingerprints (photo_sha256, photo_dhash) and doctor/date stay, so the same prescription
+    can't be used twice."""
+    __tablename__ = "prescriptions"
+
+    id = db.Column(db.Integer, primary_key=True)
+    order_id = db.Column(db.Integer, db.ForeignKey("orders.id"), nullable=False, unique=True)
+    user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False, index=True)
+    photo = deferred(db.Column(db.LargeBinary))       # JPEG; None once deleted. Loaded only when asked for.
+    photo_sha256 = db.Column(db.String(64), index=True)   # exact fingerprint of the uploaded file
+    photo_dhash = db.Column(db.String(16), index=True)    # "looks the same" fingerprint (survives re-saving)
+    similar_to_id = db.Column(db.Integer)             # another reservation with a photo that looks the same
+    status = db.Column(db.String(10), nullable=False, default="waiting")   # waiting | approved | rejected
+    doctor_name = db.Column(db.String(80))            # written by the pharmacist when approving
+    doctor_key = db.Column(db.String(80), index=True)  # the same name, simplified, to compare
+    issued_on = db.Column(db.Date)                    # date on the prescription
+    reject_reason = db.Column(db.String(30))
+    reviewed_at = db.Column(db.DateTime(timezone=True))
+    reviewed_by = db.Column(db.Integer, db.ForeignKey("pharmacies.id"))
+    created_at = db.Column(db.DateTime(timezone=True), default=utcnow, nullable=False)
+    photo_deleted_at = db.Column(db.DateTime(timezone=True))
+
+    order = db.relationship("Order", back_populates="prescription")
+
+    def to_dict(self):
+        return {
+            "id": self.id,
+            "status": self.status,
+            "doctor_name": self.doctor_name,
+            "issued_on": self.issued_on.isoformat() if self.issued_on else None,
+            "reject_reason": self.reject_reason,
+            "has_photo": self.photo_deleted_at is None,
+            "photo_deleted_at": iso_utc(self.photo_deleted_at),
+        }
+
+
+# Tables that seed.py deletes and rebuilds. Reservations (and their prescriptions) are included
+# because they point at demo pharmacies and medicines (after a reset those ids belong to other rows).
 DEMO_TABLES = [Pharmacy.__table__, Medicine.__table__, Barcode.__table__, Stock.__table__,
-               SearchLog.__table__, Order.__table__, OrderItem.__table__]
+               SearchLog.__table__, Order.__table__, OrderItem.__table__, Prescription.__table__]
 
 
 def add_missing_columns(engine):

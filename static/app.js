@@ -462,7 +462,7 @@ function renderResults(data) {
 function renderPharmacyTab(data) {
   const pr = data.price_range;
   const nearest = data.pharmacies.length ? Math.min(...data.pharmacies.map((p) => p.distance_km)) : null;
-  // Phase 7: reserve online only if it needs no prescription and isn't controlled
+  // Phase 7/8: controlled medicines can't be reserved; prescription ones can, with a photo
   const m = data.medicine;
   const reservable = window.canReserve ? window.canReserve(m) : false;
   const whyNot = m.controlled ? t("ord_controlled_note") : m.rx_required ? t("ord_rx_note") : "";
@@ -478,7 +478,7 @@ function renderPharmacyTab(data) {
         <button data-sort="distance" class="${state.sort === "distance" ? "on" : ""}">${esc(t("sort_near"))}</button>
         <button data-sort="price" class="${state.sort === "price" ? "on" : ""}">${esc(t("sort_cheap"))}</button>
       </div>
-      ${whyNot ? `<p class="reserve-note">${esc(whyNot)}</p>` : ""}
+      ${whyNot ? `<p class="reserve-note ${m.controlled ? "" : "info"}">${esc(whyNot)}</p>` : ""}
       <ul class="ph-list">
         ${data.pharmacies.map((p) => `
           <li class="ph" data-id="${p.id}">

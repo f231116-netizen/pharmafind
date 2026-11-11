@@ -40,6 +40,18 @@
     </div>
   </div>
 
+  <!-- Phase 8: big view of a prescription photo (click to zoom) -->
+  <div id="rx-modal" class="modal" hidden>
+    <div class="modal-card rx-card">
+      <div class="map-head">
+        <h3 data-i18n="ph_rx_photo"></h3>
+        <button class="icon-btn" type="button" data-close aria-label="close">&times;</button>
+      </div>
+      <div class="rx-view"><img id="rx-img" alt=""></div>
+      <p class="muted small center" data-i18n="ph_rx_zoom_hint"></p>
+    </div>
+  </div>
+
   <!-- Add a medicine to stock -->
   <div id="edit-modal" class="modal" hidden>
     <form id="edit-form" class="modal-card small" autocomplete="off">

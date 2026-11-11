@@ -114,8 +114,12 @@ $("logout-btn").addEventListener("click", async () => {
   ph.insights = null;
   ph.stock = [];
   ph.orders = null;
+  ph.ordersSig = null;
   ph.lastPending = null;
   clearInterval(ph.ordersTimer);
+  for (const url of rxUrls.values()) URL.revokeObjectURL(url);   // forget prescription photos
+  rxUrls.clear();
+  $("rx-img").removeAttribute("src");
   showLogin();
 });
 
@@ -150,22 +154,32 @@ document.querySelectorAll("[data-ptab]").forEach((b) => b.addEventListener("clic
   if (ph.tab === "orders") loadOrders();
 }));
 
-// ---------------- Reservations (Phase 7) ----------------
+// ---------------- Reservations (Phase 7, prescriptions: Phase 8) ----------------
 const ORDER_GROUPS = [
   ["pending", "ph_new_orders"],
   ["confirmed", "ph_active_orders"],
   ["ready", "ph_ready_orders"],
   ["closed", "ph_done_orders"],
 ];
+const RX_MAX_AGE_DAYS = 30;        // same as the server (order_routes.py)
+const rxUrls = new Map();          // order id -> prescription photo (loaded once, kept in memory)
 
 async function loadOrders() {
   const data = await api("/api/pharmacy/orders");
-  ph.orders = data.orders;
   const pending = data.pending_count;
   if (ph.lastPending !== null && pending > ph.lastPending) toast(t("ph_new_order_toast"));
   ph.lastPending = pending;
   $("orders-badge").textContent = pending;
   $("orders-badge").hidden = pending === 0;
+  // Redraw only if something changed, so what the pharmacist is typing isn't wiped every 20 s.
+  const sig = JSON.stringify(data.orders);
+  if (sig === ph.ordersSig) return;
+  ph.ordersSig = sig;
+  ph.orders = data.orders;
+  for (const [id, url] of rxUrls) {          // forget photos of finished reservations
+    const o = ph.orders.find((x) => x.id === id);
+    if (!o || !o.prescription || !o.prescription.has_photo) { URL.revokeObjectURL(url); rxUrls.delete(id); }
+  }
   renderOrders();
 }
 
@@ -176,22 +190,44 @@ function fmtTime(iso) {
   return "⁦" + `${pad(d.getHours())}:${pad(d.getMinutes())}` +
     (sameDay ? "" : ` · ${pad(d.getDate())}/${pad(d.getMonth() + 1)}`) + "⁩";
 }
+const fmtDay = (iso) => "⁦" + iso.split("-").reverse().join("/") + "⁩";   // 2026-11-10 -> 10/11/2026
+const todayIso = () => {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+};
+
+function rxCheckForm(o) {
+  return `
+    <div class="rx-check">
+      <b>${esc(t("ph_rx_check_title"))}</b>
+      <label class="chk"><input type="checkbox" data-chk> ${esc(t("ph_rx_chk_stamp"))}</label>
+      <label class="chk"><input type="checkbox" data-chk> ${esc(t("ph_rx_chk_date", { n: RX_MAX_AGE_DAYS }))}</label>
+      <label class="chk"><input type="checkbox" data-chk> ${esc(t("ph_rx_chk_patient", { name: o.customer.name || "–" }))}</label>
+      <label class="chk"><input type="checkbox" data-chk> ${esc(t("ph_rx_chk_medicine"))}</label>
+      <div class="field-row">
+        <label class="field"><span>${esc(t("ph_rx_doctor"))}</span><input data-doctor maxlength="80" autocomplete="off"></label>
+        <label class="field"><span>${esc(t("ph_rx_date"))}</span><input data-issued type="date" max="${todayIso()}"></label>
+      </div>
+    </div>`;
+}
 
 function orderActions(o) {
-  if (o.status === "pending") return `
+  const rx = o.prescription;
+  if (o.status === "pending") {
+    const reasons = ["out_of_stock", ...(rx ? ["rx_unreadable", "rx_invalid", "rx_mismatch", "rx_used"] : []), "other"];
+    return `
+    ${rx ? rxCheckForm(o) : ""}
     <div class="po-actions">
-      <button class="btn-primary" type="button" data-act="confirm">${esc(t("ph_confirm"))}</button>
+      <button class="btn-primary" type="button" data-act="confirm">${esc(t(rx ? "ph_rx_confirm" : "ph_confirm"))}</button>
       <button class="btn-ghost" type="button" data-act="show-reject">${esc(t("ph_reject"))}</button>
     </div>
     <div class="po-reject" hidden>
       <label class="field"><span>${esc(t("ph_reject_reason"))}</span>
-        <select data-reason>
-          <option value="out_of_stock">${esc(t("reason_out_of_stock"))}</option>
-          <option value="other">${esc(t("reason_other"))}</option>
-        </select>
+        <select data-reason>${reasons.map((r) => `<option value="${r}">${esc(t("reason_" + r))}</option>`).join("")}</select>
       </label>
       <button class="btn-primary danger" type="button" data-act="reject">${esc(t("ph_reject"))}</button>
     </div>`;
+  }
   if (o.status === "confirmed") return `
     <div class="po-actions">
       <button class="btn-primary" type="button" data-act="ready">${esc(t("ph_mark_ready"))}</button>
@@ -199,6 +235,7 @@ function orderActions(o) {
     </div>`;
   if (o.status === "ready") return `
     <form class="po-pickup" data-pickup>
+      ${rx ? `<label class="chk paper"><input type="checkbox" data-paper> ${esc(t("ph_rx_paper"))}</label>` : ""}
       <label class="field"><span>${esc(t("ph_enter_code"))}</span>
         <input data-code inputmode="numeric" maxlength="4" dir="ltr" autocomplete="off" placeholder="••••">
       </label>
@@ -206,6 +243,21 @@ function orderActions(o) {
       <button class="btn-ghost" type="button" data-act="cancel">${esc(t("cancel"))}</button>
     </form>`;
   return "";
+}
+
+function rxBlock(o) {
+  const rx = o.prescription;
+  if (!rx) return "";
+  const open = ["pending", "confirmed", "ready"].includes(o.status);
+  return `
+    ${rx.similar ? `<p class="form-error">${esc(t("ph_rx_similar", { id: rx.similar.order_id, date: fmtTime(rx.similar.created_at) }))}</p>` : ""}
+    ${rx.status === "approved" ? `<p class="rx-line rx-approved">${esc(t("ph_rx_approved", { doctor: rx.doctor_name, date: fmtDay(rx.issued_on) }))}</p>` : ""}
+    ${open && rx.has_photo ? `
+      <button class="rx-thumb" type="button" data-rx-open>
+        <img data-rx-img alt="${esc(t("ph_rx_photo"))}">
+        <span>${esc(t("ph_rx_open"))}</span>
+      </button>` : ""}
+    ${!rx.has_photo ? `<p class="muted small">${esc(t("ph_rx_deleted"))}</p>` : ""}`;
 }
 
 function orderCardPh(o) {
@@ -217,7 +269,10 @@ function orderCardPh(o) {
   return `
     <article class="card ph-order ${o.status === "pending" ? "highlight" : ""}" data-id="${o.id}">
       <div class="ord-top">
-        <span class="ord-status os-${o.status}">${esc(t("os_" + o.status))}</span>
+        <span>
+          <span class="ord-status os-${o.status}">${esc(t("os_" + o.status))}</span>
+          ${o.prescription ? `<span class="badge rx">${esc(t("rx_short"))}</span>` : ""}
+        </span>
         <span class="muted small">${esc(t("ord_number", { id: o.id }))} · ${esc(ago(o.created_at))}</span>
       </div>
       <div class="po-customer">
@@ -230,12 +285,47 @@ function orderCardPh(o) {
       </ul>
       <div class="ord-total"><span>${esc(t("ord_total"))}</span><b><bdi>${money(o.total_iqd)}</bdi></b></div>
       ${o.note ? `<p class="po-note"><b>${esc(t("ph_note"))}:</b> <bdi>${esc(o.note)}</bdi></p>` : ""}
+      ${rxBlock(o)}
       ${o.hold_until && (o.status === "confirmed" || o.status === "ready")
         ? `<p class="muted small">${esc(t("ord_until", { time: fmtTime(o.hold_until) }))}</p>` : ""}
       ${why ? `<p class="muted small">${esc(why)}</p>` : ""}
       <p class="form-error" data-error hidden></p>
       ${orderActions(o)}
     </article>`;
+}
+
+// Keep what was typed or ticked in each card when the list is drawn again.
+function saveFormState() {
+  const saved = {};
+  document.querySelectorAll(".ph-order").forEach((card) => {
+    saved[card.dataset.id] = {
+      fields: [...card.querySelectorAll("input, select")].map((el) => (el.type === "checkbox" ? el.checked : el.value)),
+      rejectOpen: !!card.querySelector(".po-reject:not([hidden])"),
+    };
+  });
+  return saved;
+}
+function restoreFormState(saved) {
+  document.querySelectorAll(".ph-order").forEach((card) => {
+    const s = saved[card.dataset.id];
+    if (!s) return;
+    const els = [...card.querySelectorAll("input, select")];
+    if (els.length !== s.fields.length) return;          // the card changed (other status): start fresh
+    els.forEach((el, i) => { if (el.type === "checkbox") el.checked = s.fields[i]; else el.value = s.fields[i]; });
+    if (s.rejectOpen) {
+      card.querySelector(".po-reject").hidden = false;
+      card.querySelector('[data-act="show-reject"]').hidden = true;
+    }
+  });
+}
+
+async function showRxPhoto(id, img) {
+  if (!rxUrls.has(id)) {
+    const res = await fetch(`/api/pharmacy/orders/${id}/prescription`, { credentials: "same-origin" });
+    if (!res.ok) return;
+    rxUrls.set(id, URL.createObjectURL(await res.blob()));
+  }
+  img.src = rxUrls.get(id);
 }
 
 function renderOrders() {
@@ -245,6 +335,7 @@ function renderOrders() {
     box.innerHTML = `<div class="card"><p class="muted">${esc(t("ph_no_orders"))}</p></div>`;
     return;
   }
+  const saved = saveFormState();
   const groupOf = (o) => (["pending", "confirmed", "ready"].includes(o.status) ? o.status : "closed");
   box.innerHTML = ORDER_GROUPS.map(([key, title]) => {
     const list = ph.orders.filter((o) => groupOf(o) === key);
@@ -252,15 +343,26 @@ function renderOrders() {
     return `<h3 class="po-group">${esc(t(title))} <span class="count">${list.length}</span></h3>
             <div class="po-grid">${list.map(orderCardPh).join("")}</div>`;
   }).join("");
+  restoreFormState(saved);
 
   box.querySelectorAll(".ph-order").forEach((card) => {
     const id = +card.dataset.id;
     const showError = (text) => { const el = card.querySelector("[data-error]"); el.textContent = text; el.hidden = false; };
+    const img = card.querySelector("[data-rx-img]");
+    if (img) {
+      showRxPhoto(id, img);
+      card.querySelector("[data-rx-open]").addEventListener("click", () => openRxViewer(id));
+    }
     card.querySelectorAll("[data-act]").forEach((b) => b.addEventListener("click", async () => {
       const act = b.dataset.act;
       if (act === "show-reject") { card.querySelector(".po-reject").hidden = false; b.hidden = true; return; }
       if (act === "cancel" && !confirm(t("ph_cancel_sure"))) return;
-      const body = act === "reject" ? { reason: card.querySelector("[data-reason]").value } : undefined;
+      let body;
+      if (act === "reject") body = { reason: card.querySelector("[data-reason]").value };
+      if (act === "confirm" && card.querySelector(".rx-check")) {
+        body = readRxCheck(card, showError);   // Phase 8: the pharmacist's check of the prescription
+        if (!body) return;
+      }
       await orderAction(id, act, body, showError, b);
     }));
     const pickup = card.querySelector("[data-pickup]");
@@ -269,9 +371,29 @@ function renderOrders() {
       const code = pickup.querySelector("[data-code]").value
         .replace(/[٠-٩]/g, (d) => d.charCodeAt(0) - 0x0660)
         .replace(/[۰-۹]/g, (d) => d.charCodeAt(0) - 0x06F0);
-      orderAction(id, "pickup", { code }, showError, pickup.querySelector("[type=submit]"));
+      const paper = pickup.querySelector("[data-paper]");
+      if (paper && !paper.checked) return showError(t("ph_rx_err_paper"));
+      orderAction(id, "pickup", { code, ...(paper ? { paper_checked: true } : {}) }, showError,
+                  pickup.querySelector("[type=submit]"));
     });
   });
+}
+
+function readRxCheck(card, showError) {
+  const allTicked = [...card.querySelectorAll("[data-chk]")].every((c) => c.checked);
+  const doctor = card.querySelector("[data-doctor]").value.trim();
+  const issued = card.querySelector("[data-issued]").value;          // "2026-11-10"
+  if (!allTicked) return showError(t("ph_rx_err_checks")), null;
+  if (doctor.length < 2) return showError(t("ph_rx_err_doctor")), null;
+  if (!issued || issued > todayIso()) return showError(t("ph_rx_err_date")), null;
+  return { checked: true, doctor_name: doctor, issued_on: issued };
+}
+
+function rxCheckError(d) {
+  if (d.fields.includes("too_old")) return t("ph_rx_err_old", { n: d.max_age_days });
+  if (d.fields.includes("issued_on")) return t("ph_rx_err_date");
+  if (d.fields.includes("doctor_name")) return t("ph_rx_err_doctor");
+  return t("ph_rx_err_checks");
 }
 
 async function orderAction(id, act, body, showError, button) {
@@ -283,6 +405,9 @@ async function orderAction(id, act, body, showError, button) {
     button.disabled = false;
     const d = err.data || {};
     if (d.error === "wrong_code") return showError(t("ph_wrong_code"));
+    if (d.error === "paper_required") return showError(t("ph_rx_err_paper"));
+    if (d.error === "rx_check") return showError(rxCheckError(d));
+    if (d.error === "rx_already_used") return showError(t("ph_rx_err_used", { id: d.order_id, pharmacy: d.pharmacy }));
     if (d.error === "not_enough") return showError(t("ph_not_enough_stock", { name: medName(d.medicine), n: d.available }));
     if (d.error === "status_changed") toast(t("ph_status_changed"));
     else return showError(t("ph_order_error"));
@@ -290,6 +415,15 @@ async function orderAction(id, act, body, showError, button) {
   await loadOrders();
   if (act === "confirm" || act === "cancel") loadStock();   // the stock numbers changed
 }
+
+// Big view of the prescription photo. Click it to zoom in and out.
+function openRxViewer(id) {
+  const img = $("rx-img");
+  img.classList.remove("zoomed");
+  img.src = rxUrls.get(id) || "";
+  $("rx-modal").hidden = false;
+}
+$("rx-img").addEventListener("click", (e) => e.target.classList.toggle("zoomed"));
 
 // ---------------- Overview ----------------
 async function loadOverview() {

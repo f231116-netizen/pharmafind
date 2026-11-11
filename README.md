@@ -478,8 +478,8 @@ version, and what Render runs) does not have it.
 ## What's new
 
 **Customers**
-- Every pharmacy in the results has a **Reserve** button (only for medicines with **no prescription**).
-  Prescription medicines show an orange note instead: "can't be reserved online yet" (Phase 8 adds that).
+- Every pharmacy in the results has a **Reserve** button. (Prescription medicines too since Phase 8,
+  with a photo of the prescription. Controlled medicines never.)
 - A **basket** button appears at the bottom. One reservation = **one pharmacy**, at most 5 boxes of each medicine.
 - **Send reservation** asks you to log in, and to fill in **name, age and gender** if they're missing
   (all three are required). Then it sends the reservation by itself.
@@ -501,7 +501,7 @@ version, and what Render runs) does not have it.
 | Open reservations per customer | 3 |
 | Kept after the pharmacy confirms | 24 hours, then it expires and the boxes go back to the stock |
 | No answer from the pharmacy | expires after 24 hours |
-| Prescription medicines | not yet (Phase 8) |
+| Prescription medicines | with a photo of the prescription, checked by the pharmacist (Phase 8) |
 | Controlled medicines (tramadol, pregabalin, …) | never online (`CONTROLLED_INGREDIENTS` in `seed_data.py`) |
 | Minimum age for an account | 12 (`MIN_AGE` in `account_routes.py`) |
 
@@ -531,7 +531,77 @@ wins, and the stock stays correct.
 ## Not done yet
 
 - The customer isn't told by SMS when the pharmacy confirms; they see it in "My reservations".
-- Phase 8: prescription photo for prescription medicines.
+
+
+---
+
+# Phase 8 — Prescription check (branch `phase6`)
+
+The app **can't prove** a prescription is real. The **pharmacist** checks it; the app carries the proof
+to them, makes sure the check really happens, and stops the same prescription being used twice.
+At pickup the **original paper** is the real proof: the pharmacist keeps or stamps it.
+
+## What's new
+
+**Customers**
+- Prescription medicines now have a **Reserve** button too (a purple note explains what is needed).
+- The basket shows **Prescription photo (required)**: take or choose a photo of the whole prescription.
+  It can't be sent without one.
+- **My reservations** shows "Prescription: being checked / approved / not accepted", and "See my photo".
+- When it's confirmed: "Bring the original prescription paper with you."
+
+**Pharmacists** (Reservations tab)
+- A **Prescription** badge, the **photo** (tap it for a big view, click to zoom) and a **checklist**:
+  doctor's stamp and signature · date within 30 days · it's for this patient · the medicine is written on it.
+- They must tick all four and write the **doctor's name** and the **date**, then **Prescription OK, confirm**.
+- Or **Reject** with a reason: photo not clear · not a valid prescription · name or medicine doesn't match ·
+  already used.
+- At pickup they must tick **"I took (or stamped) the original prescription paper"**, as well as typing the pickup code.
+
+## How re-use is stopped ("one prescription = one use")
+
+| Trick | What happens |
+|---|---|
+| Send the very same photo file again (any pharmacy) | blocked when sending (exact fingerprint, SHA-256) |
+| Send the same photo re-saved or resized | allowed, but the pharmacist sees a **warning** ("a very similar photo was sent before, reservation #…") |
+| Take a new photo of the same paper | pharmacist can't approve: same customer + same doctor + same date was already used |
+| Use the paper in the pharmacy after reserving | the pharmacist keeps or stamps the original at pickup |
+
+A prescription from a **cancelled or expired** reservation is free again (no medicine was handed over).
+The "looks the same" check is only a warning, because prescriptions from the same doctor's pad can look alike.
+
+## Privacy
+
+- The photo is stored **inside the database**, never at a public web address.
+- Only the **customer** and the **one pharmacy** it was sent to can open it (other pharmacies, other customers
+  and guests get "not found"). It is never cached by the browser.
+- Before saving, the photo is made smaller (max 1600 px) and saved again. That removes the **hidden phone data**
+  (EXIF: GPS location, phone model).
+- The photo is **deleted** as soon as the reservation is finished (collected, cancelled, rejected or expired).
+  Only the fingerprints, the doctor's name and the date are kept, for the "one use" rule.
+
+## Files and settings
+
+- `prescriptions.py`: cleans the photo, makes the fingerprints, finds re-use.
+- `order_routes.py`: `RX_MAX_AGE_DAYS = 30` (how old a prescription may be; **ask a pharmacist** what is right),
+  new reject reasons, photo addresses `/api/orders/<id>/prescription` and `/api/pharmacy/orders/<id>/prescription`.
+- New table `prescriptions` (made automatically on start).
+
+## Try it (about 3 minutes)
+
+1. `python seed.py`, then `python app.py`, open http://127.0.0.1:5000.
+2. Search **Augmentin** → **Reserve** at Shifa → **Basket** → **Add a photo of the prescription**
+   (any photo of a paper works for the demo) → **Send reservation** → log in.
+3. Open http://127.0.0.1:5000/pharmacy → **shifa / pharma123** → **Reservations**.
+   Tap the photo, tick the four checks, write the doctor's name and today's date → **Prescription OK, confirm**.
+4. **Mark as ready** → tick "I took the original paper" → type the pickup code → **Collected**.
+   The card now says "Prescription photo deleted (privacy)".
+
+## Ideas for later
+
+- Read the doctor's name and date from the photo with our OCR (`ai/ocr.py`) to fill the boxes for
+  the pharmacist (help only, never automatic approval). Handwriting is hard for OCR, so test it first.
+- A connection to the Kurdistan Ministry of Health e-prescriptions, if they ever allow it.
 
 
 ---

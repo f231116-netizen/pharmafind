@@ -1,16 +1,26 @@
-// PharmaFind - Phase 7: basket and reservations.
+// PharmaFind - Phase 7: basket and reservations. Phase 8: prescription photo.
 // Reserve medicines at ONE pharmacy, then pay and collect them there with a pickup code.
 // Uses $, t, esc, money, ago, medName, formName, openModal, closeModal, openDirections, state (app.js),
-// toast (scan.js), and requireAccount, accountApi, ltr (account.js).
+// toast and fileToBlob (scan.js), and requireAccount, accountApi, ltr (account.js).
 
 const MAX_QTY = 5;                 // same limit as the server (order_routes.py)
 const OPEN_STATUSES = ["pending", "confirmed", "ready"];
 const basket = loadBasket();       // { pharmacy, items: [{ medicine, quantity, price_iqd, available }], note }
 const myOrders = { list: [], timer: null, highlight: null, holdHours: 24, error: false };
+// The prescription photo stays only in memory (never in the browser's storage), and only until it is sent.
+const rxPhoto = { blob: null, url: null };
 
-// A medicine can be reserved online if it needs no prescription and isn't controlled.
-const canReserve = (m) => !m.rx_required && !m.controlled;
+// Controlled medicines (e.g. tramadol) can never be reserved online.
+// Prescription medicines can (Phase 8), with a photo of the prescription.
+const canReserve = (m) => !m.controlled;
 window.canReserve = canReserve;
+const needsRx = () => basket.items.some((i) => i.medicine.rx_required);
+
+function clearRxPhoto() {
+  if (rxPhoto.url) URL.revokeObjectURL(rxPhoto.url);
+  rxPhoto.blob = null;
+  rxPhoto.url = null;
+}
 
 // ---------------- Basket (kept in this browser only) ----------------
 function loadBasket() {
@@ -27,6 +37,7 @@ function emptyBasket() {
   basket.pharmacy = null;
   basket.items = [];
   basket.note = "";
+  clearRxPhoto();
   saveBasket();
 }
 
@@ -84,7 +95,7 @@ function renderBasket() {
       ${basket.items.map((i, idx) => `
         <li>
           <div class="ord-item-main">
-            <b>${esc(medName(i.medicine))}</b>
+            <b>${esc(medName(i.medicine))} ${i.medicine.rx_required ? `<span class="badge rx">${esc(t("rx_short"))}</span>` : ""}</b>
             <span class="muted"><bdi>${esc(i.medicine.strength)}</bdi> · ${esc(formName(i.medicine.form))} · <bdi>${esc(t("ord_each", { price: money(i.price_iqd) }))}</bdi></span>
           </div>
           <div class="qty" dir="ltr">
@@ -95,6 +106,25 @@ function renderBasket() {
         </li>`).join("")}
     </ul>
     <div class="ord-total"><span>${esc(t("ord_total"))}</span><b><bdi>${money(total)}</bdi></b></div>
+    ${needsRx() ? `
+      <section class="rx-box">
+        <b>${esc(t("rx_title"))}</b>
+        <p class="muted small">${esc(t("rx_how"))}</p>
+        <input id="rx-file" type="file" accept="image/*" hidden>
+        ${rxPhoto.url ? `
+          <div class="rx-preview">
+            <img src="${rxPhoto.url}" alt="">
+            <div class="rx-preview-actions">
+              <label class="link-btn" for="rx-file">${esc(t("rx_change"))}</label>
+              <button class="link-btn danger" type="button" id="rx-remove">${esc(t("rx_remove"))}</button>
+            </div>
+          </div>`
+        : `<label class="btn-ghost full rx-pick" for="rx-file">
+             <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="3.5"/></svg>
+             ${esc(t("rx_add_photo"))}
+           </label>`}
+        <p class="muted small">${esc(t("rx_privacy"))}</p>
+      </section>` : ""}
     <label class="acc-field">
       <span>${esc(t("ord_note"))}</span>
       <input id="basket-note" type="text" maxlength="200" placeholder="${esc(t("ord_note_ph"))}" value="${esc(basket.note || "")}">
@@ -121,6 +151,27 @@ function renderBasket() {
   }));
   $("basket-note").addEventListener("input", (e) => { basket.note = e.target.value; saveBasket(); });
   $("basket-send").addEventListener("click", sendReservation);
+
+  // Phase 8: the prescription photo (made smaller first, like the scanner does)
+  if ($("rx-file")) $("rx-file").addEventListener("change", async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    try {
+      const blob = await fileToBlob(file, 2000);
+      clearRxPhoto();
+      rxPhoto.blob = blob;
+      rxPhoto.url = URL.createObjectURL(blob);
+      renderBasket();
+    } catch {
+      showBasketError(t("rx_err_not_photo"));
+    }
+  });
+  if ($("rx-remove")) $("rx-remove").addEventListener("click", () => { clearRxPhoto(); renderBasket(); });
+}
+
+function showBasketError(text) {
+  $("basket-error").textContent = text;
+  $("basket-error").hidden = false;
 }
 
 function openBasket() {
@@ -137,13 +188,34 @@ function orderErrorText(data) {
     case "needs_prescription": return t("ord_err_rx", { name });
     case "controlled": return t("ord_controlled_note");
     case "bad_quantity": return t("ord_max_qty", { n: data.max });
+    case "prescription_required": return t("rx_err_required");
+    case "photo_too_small": return t("rx_err_too_small");
+    case "photo_too_big": return t("rx_err_too_big");
+    case "not_a_photo": return t("rx_err_not_photo");
+    case "photo_unavailable": return t("rx_err_unavailable");
+    case "rx_already_used": return t("rx_err_used");
     default: return t("ord_err_generic");
   }
+}
+
+// With prescription medicines the reservation is sent as a form, with the photo attached.
+async function postReservation(payload) {
+  if (!needsRx()) return accountApi("/api/orders", "POST", payload);
+  const form = new FormData();
+  form.append("order", JSON.stringify(payload));
+  form.append("prescription", rxPhoto.blob, "prescription.jpg");
+  const res = await fetch("/api/orders", {
+    method: "POST", credentials: "same-origin", headers: { "X-Requested-With": "fetch" }, body: form,
+  });
+  let data = {};
+  try { data = await res.json(); } catch { /* not JSON */ }
+  return { ok: res.ok, status: res.status, data };
 }
 
 // "Send reservation": log in (and fill in name, age, gender) first if needed, then send.
 function sendReservation() {
   if (!basket.items.length) return;
+  if (needsRx() && !rxPhoto.blob) return showBasketError(t("rx_err_required"));   // ask before logging in
   closeModal($("basket-modal"));                       // the login pop-up must not be hidden behind it
   window.requireAccount(async () => {
     openBasket();
@@ -151,7 +223,7 @@ function sendReservation() {
     btn.disabled = true;
     let r;
     try {
-      r = await accountApi("/api/orders", "POST", {
+      r = await postReservation({
         pharmacy_id: basket.pharmacy.id,
         items: basket.items.map((i) => ({ medicine_id: i.medicine.id, quantity: i.quantity })),
         note: basket.note || "",
@@ -170,8 +242,7 @@ function sendReservation() {
         const item = basket.items.find((i) => i.medicine.id === r.data.medicine.id);
         if (item) { item.available = r.data.available; saveBasket(); renderBasket(); }
       }
-      $("basket-error").textContent = orderErrorText(r.data);
-      $("basket-error").hidden = false;
+      showBasketError(orderErrorText(r.data));
       return;
     }
     emptyBasket();
@@ -198,9 +269,10 @@ function kmBetween(lat1, lng1, lat2, lng2) {
 }
 
 function statusHint(o) {
-  if (o.status === "pending") return t("ord_hint_pending");
-  if (o.status === "confirmed") return t("ord_hint_confirmed", { time: fmtTime(o.hold_until) });
-  if (o.status === "ready") return t("ord_hint_ready", { time: fmtTime(o.hold_until) });
+  const paper = o.prescription ? " " + t("rx_bring_paper") : "";
+  if (o.status === "pending") return t(o.prescription ? "ord_hint_pending_rx" : "ord_hint_pending");
+  if (o.status === "confirmed") return t("ord_hint_confirmed", { time: fmtTime(o.hold_until) }) + paper;
+  if (o.status === "ready") return t("ord_hint_ready", { time: fmtTime(o.hold_until) }) + paper;
   if (o.status === "cancelled" && o.cancelled_by === "pharmacy") {
     return t("ord_by_pharmacy", { reason: t("reason_" + o.cancel_reason) });
   }
@@ -221,6 +293,11 @@ function orderCard(o) {
         ${o.items.map((i) => `<li><span><bdi>${i.quantity} ×</bdi> ${esc(medName(i.medicine))}</span><bdi>${money(i.quantity * i.price_iqd)}</bdi></li>`).join("")}
       </ul>
       <div class="ord-total"><span>${esc(t("ord_total"))}</span><b><bdi>${money(o.total_iqd)}</bdi></b></div>
+      ${o.prescription ? `
+        <p class="rx-line rx-${o.prescription.status}">
+          <span>${esc(t("rx_status_" + o.prescription.status))}</span>
+          ${o.prescription.has_photo ? `<a href="/api/orders/${o.id}/prescription" target="_blank" rel="noopener">${esc(t("rx_view"))}</a>` : ""}
+        </p>` : ""}
       ${hint ? `<p class="ord-hint ${o.status === "cancelled" ? "bad" : ""}">${esc(hint)}</p>` : ""}
       ${open ? `
         <div class="ord-code">
