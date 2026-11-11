@@ -418,7 +418,8 @@ version, and what Render runs) does not have it.
 
 - A **Log in** button in the header (just a person icon on phones).
 - Log in with your **mobile number + a 6-digit code**. No password. The first login makes the account,
-  so "log in" and "sign up" are the same thing. New accounts are asked for a name (optional).
+  so "log in" and "sign up" are the same thing. **Name, age and gender are required** (Phase 7):
+  the account can't reserve medicines until they are filled in.
 - **Guests keep everything**: search, scan, alternatives and info need no account.
   The account is for ordering medicines (Phase 7).
 - Works in Kurdish, Arabic and English, and accepts Kurdish/Arabic digits (٠٧٧٠… or ۰۷۷۰…).
@@ -468,6 +469,72 @@ version, and what Render runs) does not have it.
 
 - Pick and connect a real **SMS or WhatsApp** provider (costs money per message) in `deliver()`.
 - Choose the PostgreSQL host and test the site against it.
+
+
+---
+
+# Phase 7 — Reserve and pick up (branch `phase6`)
+
+## What's new
+
+**Customers**
+- Every pharmacy in the results has a **Reserve** button (only for medicines with **no prescription**).
+  Prescription medicines show an orange note instead: "can't be reserved online yet" (Phase 8 adds that).
+- A **basket** button appears at the bottom. One reservation = **one pharmacy**, at most 5 boxes of each medicine.
+- **Send reservation** asks you to log in, and to fill in **name, age and gender** if they're missing
+  (all three are required). Then it sends the reservation by itself.
+- **My reservations** (in the account pop-up) shows each reservation, its status and a big **4-digit pickup code**.
+  It refreshes every 20 seconds.
+- You pay **at the pharmacy** when you collect it. No online payment.
+
+**Pharmacists** (dashboard → new **Reservations** tab, with a red number for new ones)
+- See the customer's **name, age, gender and phone**, the medicines, the total and the note.
+- **Confirm** (the boxes are taken off your stock) or **Reject** (out of stock / other reason).
+- **Mark as ready**, then type the customer's **pickup code** → **Collected**.
+- The pharmacist does **not** see the pickup code: the customer has to show it.
+
+## The rules (`order_routes.py`)
+
+| Rule | Value |
+|---|---|
+| Medicines per reservation | one pharmacy, up to 10 medicines, up to 5 boxes each |
+| Open reservations per customer | 3 |
+| Kept after the pharmacy confirms | 24 hours, then it expires and the boxes go back to the stock |
+| No answer from the pharmacy | expires after 24 hours |
+| Prescription medicines | not yet (Phase 8) |
+| Controlled medicines (tramadol, pregabalin, …) | never online (`CONTROLLED_INGREDIENTS` in `seed_data.py`) |
+| Minimum age for an account | 12 (`MIN_AGE` in `account_routes.py`) |
+
+Statuses: `pending` (waiting) → `confirmed` → `ready` → `picked_up`, or `cancelled` / `expired`.
+When two people click at the same moment (customer cancels while the pharmacist confirms), only one
+wins, and the stock stays correct.
+
+## Database
+
+- New tables `orders` and `order_items`; new columns `users.birth_year`, `users.gender`, `medicines.controlled`.
+- We ask for the **age** but save the **year of birth**, so the age is still right next year.
+- An older database gets the new columns automatically when the app starts (`add_missing_columns` in `models.py`).
+- `python seed.py` also deletes the reservations (they belong to the demo pharmacies). Accounts stay.
+- `python seed.py --if-empty` only fills an empty database. `start.sh` uses it when `DATABASE_URL`
+  (PostgreSQL) is set, so restarting the website doesn't wipe accounts and reservations.
+
+## Try the whole thing (about 2 minutes)
+
+1. `python seed.py`, then `python app.py`, open http://127.0.0.1:5000.
+2. Search **Panadol** → **Reserve** at Shifa Pharmacy (twice) → tap **Basket** → **Send reservation**.
+3. Log in with any number (the code is in the yellow box), fill in name, age, gender → it is sent.
+   Note the **pickup code**.
+4. Open http://127.0.0.1:5000/pharmacy, log in as **shifa / pharma123** → **Reservations** →
+   **Confirm** → **Mark as ready** → type the pickup code → **Collected**.
+5. Back in the app: **My reservations** shows "Collected".
+
+## Not done yet
+
+- The customer isn't told by SMS when the pharmacy confirms; they see it in "My reservations".
+- Phase 8: prescription photo for prescription medicines.
+
+
+---
 
 ## Before the showcase (24 Nov)
 

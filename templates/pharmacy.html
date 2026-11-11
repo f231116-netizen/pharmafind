@@ -112,7 +112,7 @@
         <h2 id="ph-name"></h2>
         <p id="ph-address" class="muted"></p>
       </div>
-      <div class="ph-filters">
+      <div id="ph-filters" class="ph-filters">
         <select id="f-days" aria-label="period"></select>
         <select id="f-radius" aria-label="area"></select>
       </div>
@@ -120,8 +120,14 @@
 
     <nav class="tabs ph-tabs">
       <button data-ptab="overview" class="on" data-i18n="ph_tab_overview"></button>
+      <button data-ptab="orders"><span data-i18n="ph_tab_orders"></span> <span id="orders-badge" class="count new" hidden></span></button>
       <button data-ptab="stock" data-i18n="ph_tab_stock"></button>
     </nav>
+
+    <!-- Phase 7: reservations from customers -->
+    <section id="tab-orders" hidden>
+      <div id="orders-list"></div>
+    </section>
 
     <section id="tab-overview">
       <div id="kpis" class="kpis"></div>

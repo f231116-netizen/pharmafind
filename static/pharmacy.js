@@ -1,5 +1,6 @@
-// PharmaFind - pharmacist dashboard (Phase 5)
-// Login -> Overview (demand near the pharmacy) and My stock (edit prices and quantities).
+// PharmaFind - pharmacist dashboard (Phase 5, reservations: Phase 7)
+// Login -> Overview (demand near the pharmacy), Reservations (from customers),
+// and My stock (edit prices and quantities).
 // Uses LANGS and I18N from i18n.js. The language choice is shared with the public app.
 
 const ph = {
@@ -11,6 +12,9 @@ const ph = {
   stock: [],
   allMedicines: null,
   saveTimers: new Map(),   // medicine id -> pending save
+  orders: null,            // reservations (Phase 7)
+  ordersTimer: null,
+  lastPending: null,       // to notice new reservations
 };
 
 const $ = (id) => document.getElementById(id);
@@ -35,6 +39,7 @@ function setLang(lang, remember = true) {
   fillFilters();
   if (ph.insights) renderOverview();
   if (ph.stock.length || ph.tab === "stock") renderStock();
+  if (ph.orders) renderOrders();
 }
 document.querySelectorAll("#lang-picker [data-lang]").forEach((b) => b.addEventListener("click", () => setLang(b.dataset.lang)));
 $("lang-btn").addEventListener("click", () => { $("lang-picker").hidden = false; });
@@ -108,6 +113,9 @@ $("logout-btn").addEventListener("click", async () => {
   await api("/api/pharmacy/logout", { method: "POST" }).catch(() => {});
   ph.insights = null;
   ph.stock = [];
+  ph.orders = null;
+  ph.lastPending = null;
+  clearInterval(ph.ordersTimer);
   showLogin();
 });
 
@@ -119,7 +127,10 @@ async function start() {
   $("logout-btn").hidden = false;
   $("ph-name").textContent = me.pharmacy.name;
   $("ph-address").textContent = `${me.pharmacy.address} · ${me.pharmacy.open_hours}`;
-  await Promise.all([loadOverview(), loadStock()]);
+  await Promise.all([loadOverview(), loadStock(), loadOrders()]);
+  // Check for new reservations every 20 seconds (shows a number on the tab and a message).
+  clearInterval(ph.ordersTimer);
+  ph.ordersTimer = setInterval(() => loadOrders().catch(() => {}), 20000);
 }
 
 // ---------------- Filters & tabs ----------------
@@ -133,10 +144,152 @@ $("f-radius").addEventListener("change", (e) => { ph.radius = +e.target.value; l
 document.querySelectorAll("[data-ptab]").forEach((b) => b.addEventListener("click", () => {
   ph.tab = b.dataset.ptab;
   document.querySelectorAll("[data-ptab]").forEach((x) => x.classList.toggle("on", x === b));
-  $("tab-overview").hidden = ph.tab !== "overview";
-  $("tab-stock").hidden = ph.tab !== "stock";
+  for (const name of ["overview", "orders", "stock"]) $("tab-" + name).hidden = ph.tab !== name;
+  $("ph-filters").hidden = ph.tab !== "overview";     // days / km only matter for the overview
   if (ph.tab === "overview") loadOverview();
+  if (ph.tab === "orders") loadOrders();
 }));
+
+// ---------------- Reservations (Phase 7) ----------------
+const ORDER_GROUPS = [
+  ["pending", "ph_new_orders"],
+  ["confirmed", "ph_active_orders"],
+  ["ready", "ph_ready_orders"],
+  ["closed", "ph_done_orders"],
+];
+
+async function loadOrders() {
+  const data = await api("/api/pharmacy/orders");
+  ph.orders = data.orders;
+  const pending = data.pending_count;
+  if (ph.lastPending !== null && pending > ph.lastPending) toast(t("ph_new_order_toast"));
+  ph.lastPending = pending;
+  $("orders-badge").textContent = pending;
+  $("orders-badge").hidden = pending === 0;
+  renderOrders();
+}
+
+function fmtTime(iso) {
+  const d = new Date(iso);
+  const pad = (n) => String(n).padStart(2, "0");
+  const sameDay = d.toDateString() === new Date().toDateString();
+  return "⁦" + `${pad(d.getHours())}:${pad(d.getMinutes())}` +
+    (sameDay ? "" : ` · ${pad(d.getDate())}/${pad(d.getMonth() + 1)}`) + "⁩";
+}
+
+function orderActions(o) {
+  if (o.status === "pending") return `
+    <div class="po-actions">
+      <button class="btn-primary" type="button" data-act="confirm">${esc(t("ph_confirm"))}</button>
+      <button class="btn-ghost" type="button" data-act="show-reject">${esc(t("ph_reject"))}</button>
+    </div>
+    <div class="po-reject" hidden>
+      <label class="field"><span>${esc(t("ph_reject_reason"))}</span>
+        <select data-reason>
+          <option value="out_of_stock">${esc(t("reason_out_of_stock"))}</option>
+          <option value="other">${esc(t("reason_other"))}</option>
+        </select>
+      </label>
+      <button class="btn-primary danger" type="button" data-act="reject">${esc(t("ph_reject"))}</button>
+    </div>`;
+  if (o.status === "confirmed") return `
+    <div class="po-actions">
+      <button class="btn-primary" type="button" data-act="ready">${esc(t("ph_mark_ready"))}</button>
+      <button class="btn-ghost" type="button" data-act="cancel">${esc(t("cancel"))}</button>
+    </div>`;
+  if (o.status === "ready") return `
+    <form class="po-pickup" data-pickup>
+      <label class="field"><span>${esc(t("ph_enter_code"))}</span>
+        <input data-code inputmode="numeric" maxlength="4" dir="ltr" autocomplete="off" placeholder="••••">
+      </label>
+      <button class="btn-primary" type="submit">${esc(t("ph_picked_up"))}</button>
+      <button class="btn-ghost" type="button" data-act="cancel">${esc(t("cancel"))}</button>
+    </form>`;
+  return "";
+}
+
+function orderCardPh(o) {
+  const c = o.customer;
+  const who = [c.age != null ? t("ph_age", { n: c.age }) : null, c.gender ? t("acc_" + c.gender) : null]
+    .filter(Boolean).join(" · ");
+  const why = o.status === "cancelled" ? t(o.cancelled_by === "customer" ? "ph_cancelled_by_customer" : "reason_" + o.cancel_reason)
+    : o.status === "expired" ? t(o.cancel_reason === "no_answer" ? "ph_expired_no_answer" : "ph_expired_not_collected") : "";
+  return `
+    <article class="card ph-order ${o.status === "pending" ? "highlight" : ""}" data-id="${o.id}">
+      <div class="ord-top">
+        <span class="ord-status os-${o.status}">${esc(t("os_" + o.status))}</span>
+        <span class="muted small">${esc(t("ord_number", { id: o.id }))} · ${esc(ago(o.created_at))}</span>
+      </div>
+      <div class="po-customer">
+        <b><bdi>${esc(c.name || "–")}</bdi></b>
+        ${who ? `<span class="po-who">${esc(who)}</span>` : ""}
+        <a href="tel:${esc(c.phone)}" dir="ltr">${esc(c.phone_display)}</a>
+      </div>
+      <ul class="ord-lines">
+        ${o.items.map((i) => `<li><span><bdi>${i.quantity} ×</bdi> ${esc(medName(i.medicine))} <small class="muted"><bdi>${esc(i.medicine.strength)}</bdi></small></span><bdi>${money(i.quantity * i.price_iqd)}</bdi></li>`).join("")}
+      </ul>
+      <div class="ord-total"><span>${esc(t("ord_total"))}</span><b><bdi>${money(o.total_iqd)}</bdi></b></div>
+      ${o.note ? `<p class="po-note"><b>${esc(t("ph_note"))}:</b> <bdi>${esc(o.note)}</bdi></p>` : ""}
+      ${o.hold_until && (o.status === "confirmed" || o.status === "ready")
+        ? `<p class="muted small">${esc(t("ord_until", { time: fmtTime(o.hold_until) }))}</p>` : ""}
+      ${why ? `<p class="muted small">${esc(why)}</p>` : ""}
+      <p class="form-error" data-error hidden></p>
+      ${orderActions(o)}
+    </article>`;
+}
+
+function renderOrders() {
+  const box = $("orders-list");
+  if (!ph.orders) return;
+  if (!ph.orders.length) {
+    box.innerHTML = `<div class="card"><p class="muted">${esc(t("ph_no_orders"))}</p></div>`;
+    return;
+  }
+  const groupOf = (o) => (["pending", "confirmed", "ready"].includes(o.status) ? o.status : "closed");
+  box.innerHTML = ORDER_GROUPS.map(([key, title]) => {
+    const list = ph.orders.filter((o) => groupOf(o) === key);
+    if (!list.length) return "";
+    return `<h3 class="po-group">${esc(t(title))} <span class="count">${list.length}</span></h3>
+            <div class="po-grid">${list.map(orderCardPh).join("")}</div>`;
+  }).join("");
+
+  box.querySelectorAll(".ph-order").forEach((card) => {
+    const id = +card.dataset.id;
+    const showError = (text) => { const el = card.querySelector("[data-error]"); el.textContent = text; el.hidden = false; };
+    card.querySelectorAll("[data-act]").forEach((b) => b.addEventListener("click", async () => {
+      const act = b.dataset.act;
+      if (act === "show-reject") { card.querySelector(".po-reject").hidden = false; b.hidden = true; return; }
+      if (act === "cancel" && !confirm(t("ph_cancel_sure"))) return;
+      const body = act === "reject" ? { reason: card.querySelector("[data-reason]").value } : undefined;
+      await orderAction(id, act, body, showError, b);
+    }));
+    const pickup = card.querySelector("[data-pickup]");
+    if (pickup) pickup.addEventListener("submit", (e) => {
+      e.preventDefault();
+      const code = pickup.querySelector("[data-code]").value
+        .replace(/[٠-٩]/g, (d) => d.charCodeAt(0) - 0x0660)
+        .replace(/[۰-۹]/g, (d) => d.charCodeAt(0) - 0x06F0);
+      orderAction(id, "pickup", { code }, showError, pickup.querySelector("[type=submit]"));
+    });
+  });
+}
+
+async function orderAction(id, act, body, showError, button) {
+  button.disabled = true;
+  try {
+    await api(`/api/pharmacy/orders/${id}/${act}`, { method: "POST", ...(body ? { body: JSON.stringify(body) } : {}) });
+    toast(t("ph_saved"));
+  } catch (err) {
+    button.disabled = false;
+    const d = err.data || {};
+    if (d.error === "wrong_code") return showError(t("ph_wrong_code"));
+    if (d.error === "not_enough") return showError(t("ph_not_enough_stock", { name: medName(d.medicine), n: d.available }));
+    if (d.error === "status_changed") toast(t("ph_status_changed"));
+    else return showError(t("ph_order_error"));
+  }
+  await loadOrders();
+  if (act === "confirm" || act === "cancel") loadStock();   // the stock numbers changed
+}
 
 // ---------------- Overview ----------------
 async function loadOverview() {

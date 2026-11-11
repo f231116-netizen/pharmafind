@@ -1,11 +1,11 @@
 // PharmaFind - Phase 6: customer accounts (phone number + one-time code).
-// Guests can still search and scan without an account. The account is for ordering (Phase 7).
+// Phase 7: name, age and gender are required before reserving medicines.
+// Guests can still search and scan without an account.
 // Uses $, t, openModal, closeModal (app.js) and toast (scan.js).
 
 const account = {
   user: null,          // the logged-in customer, or null for a guest
   step: "phone",       // phone | code | profile
-  isNew: false,        // true right after a brand-new account was made (we ask for a name)
   phone: "",           // the number we sent the code to, e.g. +9647701234567
   phoneDisplay: "",    // the same number as people write it, e.g. 0770 123 4567
   testCode: null,      // only in test mode (no SMS yet): the code, shown on the page
@@ -13,8 +13,11 @@ const account = {
   resendAt: 0,         // when "Send a new code" can be pressed again (ms)
   timer: null,
   busy: false,
-  errors: { phone: null, code: null },
+  after: null,         // what to do once logged in with complete details (e.g. send the reservation)
+  errors: { phone: null, code: null, profile: null },
 };
+
+const ERROR_BOX = { phone: "acc-phone-error", code: "acc-code-error", profile: "acc-profile-error" };
 
 // Phone numbers and codes always read left-to-right, even inside a Kurdish/Arabic sentence.
 const ltr = (s) => "⁦" + s + "⁩";
@@ -23,6 +26,8 @@ const ltr = (s) => "⁦" + s + "⁩";
 const asciiDigits = (s) => s
   .replace(/[٠-٩]/g, (d) => d.charCodeAt(0) - 0x0660)
   .replace(/[۰-۹]/g, (d) => d.charCodeAt(0) - 0x06F0);
+
+const isComplete = () => !!(account.user && account.user.profile_complete);
 
 async function accountApi(path, method = "GET", body) {
   const res = await fetch(path, {
@@ -46,13 +51,15 @@ function errorText(err) {
     case "wrong_code": return t("acc_err_wrong", { n: err.tries_left });
     case "no_tries": return t("acc_err_no_tries");
     case "bad_code": return t("acc_err_code_len");
+    case "invalid": return err.fields.map((f) => t("acc_err_" + f)).join(" ");
+    case "finish": return t("acc_finish_profile");
     default: return t("acc_err_network");
   }
 }
 
 function setError(where, err) {
   account.errors[where] = err;
-  const el = $(where === "phone" ? "acc-phone-error" : "acc-code-error");
+  const el = $(ERROR_BOX[where]);
   el.textContent = errorText(err);
   el.hidden = !err;
 }
@@ -62,19 +69,19 @@ function renderAccount() {
   const u = account.user;
   $("account-label").textContent = u ? (u.name || t("acc_my_account")) : t("acc_login");
   $("account-btn").classList.toggle("on", !!u);
+  $("account-btn").classList.toggle("todo", !!u && !u.profile_complete);   // red dot: details missing
   $("account-btn").title = u ? t("acc_my_account") : t("acc_login");
 
   const titles = { phone: "acc_title_login", code: "acc_title_code",
-                   profile: account.isNew ? "acc_title_welcome" : "acc_title_account" };
+                   profile: u && !u.profile_complete ? "acc_title_profile_new" : "acc_title_account" };
   $("acc-title").textContent = t(titles[account.step]);
   $("acc-sent-to").textContent = t("acc_sent_to", { phone: ltr(account.phoneDisplay) });
   $("acc-test-code").hidden = !account.testCode;
   $("acc-test-code").textContent = account.testCode ? t("acc_test_code", { code: ltr(account.testCode) }) : "";
   $("acc-phone-line").textContent = u ? t("acc_phone_line", { phone: ltr(u.phone_display) }) : "";
-  $("acc-skip").hidden = !account.isNew;
-  $("acc-logout").hidden = account.isNew;
-  setError("phone", account.errors.phone);   // re-translate any message on screen
-  setError("code", account.errors.code);
+  $("acc-save").textContent = t(u && u.profile_complete ? "acc_save" : "acc_save_continue");
+  $("acc-orders-btn").hidden = !(u && u.profile_complete);
+  for (const where of Object.keys(ERROR_BOX)) setError(where, account.errors[where]);  // re-translate
   renderResend();
 }
 window.renderAccount = renderAccount;
@@ -96,11 +103,19 @@ function startResendTimer(seconds) {
   renderResend();
 }
 
+function fillProfileForm() {
+  const u = account.user || {};
+  $("acc-name").value = u.name || "";
+  $("acc-age").value = u.age || "";
+  document.querySelectorAll('input[name="acc-gender"]').forEach((r) => { r.checked = r.value === u.gender; });
+}
+
 function showStep(step) {
   account.step = step;
   $("acc-phone-step").hidden = step !== "phone";
   $("acc-code-step").hidden = step !== "code";
   $("acc-profile-step").hidden = step !== "profile";
+  if (step === "profile") fillProfileForm();
   renderAccount();
   const first = { phone: "acc-phone", code: "acc-code", profile: "acc-name" }[step];
   setTimeout(() => $(first).focus(), 60);
@@ -116,9 +131,8 @@ function setBusy(form, on) {
 function openAccount() {
   setError("phone", null);
   setError("code", null);
+  setError("profile", null);
   if (account.user) {
-    account.isNew = false;
-    $("acc-name").value = account.user.name || "";
     showStep("profile");
   } else if (account.step === "code" && Date.now() < account.codeUntil) {
     showStep("code");              // they closed the pop-up while waiting for the SMS
@@ -128,12 +142,22 @@ function openAccount() {
   openModal($("account-modal"));
 }
 
-window.onAccountClosed = () => {
-  if (account.user && account.isNew) {   // closed the "what's your name" step: that's fine
-    account.isNew = false;
-    toast(t("acc_logged_in"));
-  }
+// Phase 7: "do this, but log in and fill in your details first if needed".
+window.requireAccount = (fn) => {
+  if (isComplete()) return fn();
+  account.after = fn;
+  openAccount();
+  if (account.user) setError("profile", { error: "finish" });
 };
+
+function finishLogin() {
+  const next = account.after;
+  account.after = null;
+  closeModal($("account-modal"));
+  if (next) next();
+}
+
+window.onAccountClosed = () => { account.after = null; };   // closed without finishing: forget the plan
 
 // ---------------- Step 1: send the code ----------------
 async function sendCode(phone, form, errorWhere) {
@@ -196,16 +220,14 @@ async function verifyCode() {
     return;
   }
   account.user = r.data.user;
-  account.isNew = r.data.new;
   account.testCode = null;
   account.codeUntil = 0;
-  if (account.isNew) {
-    $("acc-name").value = "";
-    showStep("profile");          // new account: ask for a name (optional)
+  if (!account.user.profile_complete) {
+    showStep("profile");          // new account (or details missing): name, age, gender are required
   } else {
     account.step = "phone";
-    closeModal($("account-modal"));
     toast(t("acc_logged_in"));
+    finishLogin();
   }
   renderAccount();
 }
@@ -216,14 +238,28 @@ $("acc-code").addEventListener("input", () => {
   if (asciiDigits($("acc-code").value).replace(/\D/g, "").length === 6) verifyCode();
 });
 
-// ---------------- Step 3: name, log out ----------------
+// ---------------- Step 3: name, age, gender (all required) ----------------
+function readProfileForm() {
+  const name = $("acc-name").value.trim();
+  const ageText = asciiDigits($("acc-age").value).replace(/\D/g, "");
+  const gender = (document.querySelector('input[name="acc-gender"]:checked') || {}).value || "";
+  const wrong = [];
+  if (name.length < 2) wrong.push("name");
+  if (!ageText || +ageText < 12 || +ageText > 120) wrong.push("age");
+  if (!gender) wrong.push("gender");
+  return { values: { name, age: ageText, gender }, wrong };
+}
+
 $("acc-profile-step").addEventListener("submit", async (e) => {
   e.preventDefault();
   const form = e.currentTarget;
+  const { values, wrong } = readProfileForm();
+  if (wrong.length) return setError("profile", { error: "invalid", fields: wrong });
+  setError("profile", null);
   setBusy(form, true);
   let r;
   try {
-    r = await accountApi("/api/account/me", "PUT", { name: $("acc-name").value });
+    r = await accountApi("/api/account/me", "PUT", values);
   } catch {
     r = { ok: false, status: 0, data: {} };
   }
@@ -233,20 +269,22 @@ $("acc-profile-step").addEventListener("submit", async (e) => {
     showStep("phone");
     return;
   }
-  if (!r.ok) return toast(t("acc_err_network"));
+  if (!r.ok) return setError("profile", r.data.error === "invalid" ? r.data : { error: "network" });
+  const wasComplete = isComplete();
   account.user = r.data.user;
-  account.isNew = false;
-  closeModal($("account-modal"));
-  toast(t("acc_saved"));
   renderAccount();
+  toast(t(wasComplete ? "acc_saved" : "acc_logged_in"));
+  finishLogin();
 });
 
-$("acc-skip").addEventListener("click", () => closeModal($("account-modal")));
+$("acc-orders-btn").addEventListener("click", () => {
+  closeModal($("account-modal"));
+  if (window.openOrders) window.openOrders();
+});
 
 $("acc-logout").addEventListener("click", async () => {
   try { await accountApi("/api/account/logout", "POST"); } catch { /* offline: forget it here anyway */ }
   account.user = null;
-  account.isNew = false;
   $("acc-phone").value = "";
   closeModal($("account-modal"));
   showStep("phone");

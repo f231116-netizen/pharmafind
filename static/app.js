@@ -53,6 +53,7 @@ function setLang(lang, remember = true) {
   if (!$("map-modal").hidden) renderMapFoot();
   if (window.renderScanText) window.renderScanText();
   if (window.renderAccount) window.renderAccount();
+  if (window.renderOrdersUi) window.renderOrdersUi();
 }
 
 function openLangPicker() { $("lang-picker").hidden = false; }
@@ -100,6 +101,7 @@ function closeModal(el) {
   if (el.id === "map-modal") onMapClosed();
   if (el.id === "scan-modal" && window.onScanClosed) window.onScanClosed();
   if (el.id === "account-modal" && window.onAccountClosed) window.onAccountClosed();
+  if (el.id === "orders-modal" && window.onOrdersClosed) window.onOrdersClosed();
 }
 document.querySelectorAll(".modal").forEach((m) => {
   m.addEventListener("click", (e) => {
@@ -441,6 +443,13 @@ function renderResults(data) {
       if (p) openDirections(p);
     })
   );
+  // Phase 7: put this medicine from this pharmacy in the basket
+  box.querySelectorAll(".reserve-btn").forEach((b) =>
+    b.addEventListener("click", () => {
+      const p = state.lastData.pharmacies.find((x) => x.id === +b.dataset.id);
+      if (p && window.addToBasket) window.addToBasket(state.lastData.medicine, p);
+    })
+  );
   box.querySelectorAll(".alt").forEach((el) =>
     el.addEventListener("click", () => {
       const all = [...alts.exact, ...alts.similar];
@@ -453,6 +462,10 @@ function renderResults(data) {
 function renderPharmacyTab(data) {
   const pr = data.price_range;
   const nearest = data.pharmacies.length ? Math.min(...data.pharmacies.map((p) => p.distance_km)) : null;
+  // Phase 7: reserve online only if it needs no prescription and isn't controlled
+  const m = data.medicine;
+  const reservable = window.canReserve ? window.canReserve(m) : false;
+  const whyNot = m.controlled ? t("ord_controlled_note") : m.rx_required ? t("ord_rx_note") : "";
   return `
     <div class="summary pad">
       <div class="stat"><b>${data.available_count}</b><span>${esc(t("s_have"))}</span></div>
@@ -465,6 +478,7 @@ function renderPharmacyTab(data) {
         <button data-sort="distance" class="${state.sort === "distance" ? "on" : ""}">${esc(t("sort_near"))}</button>
         <button data-sort="price" class="${state.sort === "price" ? "on" : ""}">${esc(t("sort_cheap"))}</button>
       </div>
+      ${whyNot ? `<p class="reserve-note">${esc(whyNot)}</p>` : ""}
       <ul class="ph-list">
         ${data.pharmacies.map((p) => `
           <li class="ph" data-id="${p.id}">
@@ -478,6 +492,7 @@ function renderPharmacyTab(data) {
             <div class="ph-actions">
               <a href="tel:${esc(p.phone.replace(/\s/g, ""))}">${esc(t("call"))} <bdi>${esc(p.phone)}</bdi></a>
               <button class="dir-btn" type="button" data-id="${p.id}">${esc(t("directions"))}</button>
+              ${reservable ? `<button class="reserve-btn" type="button" data-id="${p.id}">${esc(t("ord_reserve"))}</button>` : ""}
             </div>
           </li>`).join("")}
       </ul>` : `<div class="none-box">${esc(t("none", { name: medName(state.lastData.medicine) }))}</div>`}

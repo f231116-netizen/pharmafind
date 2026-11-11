@@ -153,6 +153,15 @@ MEDICINES = [
      "Relief of allergy symptoms (antihistamine).", True),
 ]
 
+# Phase 7: "controlled" medicines (abuse risk). They can never be reserved online, only bought
+# in person. A medicine is controlled if any of its active ingredients is in this list.
+# None of the 52 demo medicines is controlled today; this is ready for when one is added.
+# Have a pharmacist check this list.
+CONTROLLED_INGREDIENTS = {
+    "Tramadol", "Codeine", "Morphine", "Pregabalin", "Gabapentin",
+    "Diazepam", "Alprazolam", "Clonazepam", "Lorazepam", "Zolpidem",
+}
+
 
 # Translations of each "general use" sentence: English -> (Arabic, Kurdish).
 # Every general_use in MEDICINES above must appear here (seed.py checks this).

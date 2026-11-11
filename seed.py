@@ -1,17 +1,23 @@
-"""Reset the demo data (pharmacies, medicines, barcodes, stock, search history).
+"""Reset the demo data (pharmacies, medicines, barcodes, stock, search history, reservations).
 
-Run:  python seed.py
-WARNING: this deletes the demo tables and rebuilds them.
+Run:  python seed.py              delete the demo tables and rebuild them
+      python seed.py --if-empty   only fill the database if it has no pharmacies yet
+                                  (used online with PostgreSQL, so a restart doesn't wipe it)
 Customer accounts (users, login_codes) are NOT touched (Phase 6).
+Reservations ARE deleted: they belong to the demo pharmacies (Phase 7).
 """
 import random
+import sys
 from datetime import datetime, timedelta, timezone
+
+import sqlalchemy as sa
 
 from app import create_app
 from models import db, Pharmacy, Medicine, Stock, Barcode, SearchLog, DEMO_TABLES
 from seed_data import (PHARMACIES, MEDICINES, USE_TRANSLATIONS, DEMO_OUT_OF_STOCK,
                        DEMO_ALWAYS_IN_STOCK, BARCODES, STICKER_PRICES, DEMO_PASSWORD,
-                       DEMO_SEARCH_DAYS, DEMO_SEARCH_COUNT, DEMO_SEARCH_WEIGHTS, DEMO_NOT_FOUND)
+                       DEMO_SEARCH_DAYS, DEMO_SEARCH_COUNT, DEMO_SEARCH_WEIGHTS, DEMO_NOT_FOUND,
+                       CONTROLLED_INGREDIENTS)
 
 # Fixed seed so everyone on the team gets the same demo data.
 random.seed(2026)
@@ -28,9 +34,17 @@ PRICE_RANGE = {
 }
 
 
-def seed():
+def is_controlled(ingredient):
+    """'Paracetamol + Codeine' -> True if any part is in CONTROLLED_INGREDIENTS."""
+    return any(part.strip() in CONTROLLED_INGREDIENTS for part in ingredient.split("+"))
+
+
+def seed(if_empty=False):
     app = create_app()
     with app.app_context():
+        if if_empty and sa.inspect(db.engine).has_table("pharmacies") and Pharmacy.query.count():
+            print("The database already has data. Nothing changed (--if-empty).")
+            return
         # Only the demo tables are deleted. Accounts stay.
         db.metadata.drop_all(bind=db.engine, tables=DEMO_TABLES)
         db.create_all()
@@ -62,6 +76,7 @@ def seed():
                 brand_name=brand, name_ar=ar, name_ku=ku,
                 active_ingredient=ingredient, strength=strength, form=form,
                 company=company, general_use=use, rx_required=rx,
+                controlled=is_controlled(ingredient),
                 general_use_ar=use_ar, general_use_ku=use_ku,
                 from_real_box=brand in BARCODES or brand == "Hyoscine-N-Butylbromide",
             )
@@ -127,4 +142,4 @@ def seed_searches(pharmacies, medicines):
 
 
 if __name__ == "__main__":
-    seed()
+    seed(if_empty="--if-empty" in sys.argv)

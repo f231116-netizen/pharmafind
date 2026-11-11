@@ -134,20 +134,63 @@
         </div>
       </form>
 
-      <!-- Step 3: your account (new accounts are asked for a name) -->
+      <!-- Step 3: your details. Name, age and gender are required before reserving (Phase 7). -->
       <form id="acc-profile-step" class="acc-step" novalidate hidden>
         <p id="acc-phone-line" class="acc-phone-line"></p>
+        <p class="acc-soon" data-i18n="acc_profile_why"></p>
         <label class="acc-field">
           <span data-i18n="acc_name"></span>
           <input id="acc-name" type="text" maxlength="80" autocomplete="name">
         </label>
-        <p class="acc-soon" data-i18n="acc_orders_soon"></p>
-        <button class="btn-primary full" type="submit" data-i18n="acc_save"></button>
-        <button id="acc-skip" class="btn-ghost full" type="button" data-i18n="acc_skip"></button>
+        <div class="acc-row">
+          <label class="acc-field">
+            <span data-i18n="acc_age"></span>
+            <input id="acc-age" type="text" inputmode="numeric" maxlength="3" dir="ltr" autocomplete="off">
+          </label>
+          <fieldset class="acc-field acc-gender">
+            <legend data-i18n="acc_gender"></legend>
+            <div class="seg">
+              <label><input type="radio" name="acc-gender" value="male"><span data-i18n="acc_male"></span></label>
+              <label><input type="radio" name="acc-gender" value="female"><span data-i18n="acc_female"></span></label>
+            </div>
+          </fieldset>
+        </div>
+        <p id="acc-profile-error" class="acc-error" role="alert" hidden></p>
+        <button id="acc-save" class="btn-primary full" type="submit"></button>
+        <button id="acc-orders-btn" class="btn-ghost full" type="button" data-i18n="acc_my_orders"></button>
         <button id="acc-logout" class="btn-ghost full" type="button" data-i18n="acc_logout"></button>
       </form>
     </div>
   </div>
+
+  <!-- Phase 7: the basket (medicines from ONE pharmacy) -->
+  <div id="basket-modal" class="modal" hidden>
+    <div class="modal-card small ord-card">
+      <div class="acc-head">
+        <h3 data-i18n="ord_basket_title"></h3>
+        <button class="icon-btn" type="button" data-close data-i18n-label="close">&times;</button>
+      </div>
+      <div id="basket-body" class="acc-step"></div>
+    </div>
+  </div>
+
+  <!-- Phase 7: my reservations, with the pickup code -->
+  <div id="orders-modal" class="modal" hidden>
+    <div class="modal-card small ord-card">
+      <div class="acc-head">
+        <h3 data-i18n="acc_my_orders"></h3>
+        <button class="icon-btn" type="button" data-close data-i18n-label="close">&times;</button>
+      </div>
+      <div id="orders-body" class="ord-list"></div>
+    </div>
+  </div>
+
+  <!-- Phase 7: basket button, shown when the basket has medicines -->
+  <button id="basket-fab" class="basket-fab" type="button" hidden>
+    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 8h14l-1.2 11.2a2 2 0 0 1-2 1.8H8.2a2 2 0 0 1-2-1.8L5 8Z"/><path d="M9 8V6a3 3 0 0 1 6 0v2"/></svg>
+    <span id="basket-fab-label"></span>
+    <b id="basket-fab-count">0</b>
+  </button>
 
   <div id="toast" class="toast" role="status" hidden></div>
 
@@ -212,5 +255,6 @@
   <script src="{{ url_for('static', filename='app.js') }}"></script>
   <script src="{{ url_for('static', filename='scan.js') }}"></script>
   <script src="{{ url_for('static', filename='account.js') }}"></script>
+  <script src="{{ url_for('static', filename='orders.js') }}"></script>
 </body>
 </html>

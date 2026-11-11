@@ -7,7 +7,10 @@ Logging in and signing up are the same thing: the first time a number logs in, i
 API:  POST /api/account/send-code   {phone}          send a 6-digit code to this phone
       POST /api/account/verify      {phone, code}    check the code and log in
       GET  /api/account/me                           who is logged in ({"user": null} for guests)
-      PUT  /api/account/me          {name}           change your name
+      PUT  /api/account/me          {name, age, gender}   your details (all three required)
+
+Name, age and gender are required before reserving medicines (Phase 7): the pharmacist uses them
+to check that a medicine is right for this person. user.profile_complete says if they are filled in.
       POST /api/account/logout
 
 How the code reaches the phone (the OTP_PROVIDER setting):
@@ -36,7 +39,7 @@ from functools import wraps
 
 from flask import Blueprint, abort, current_app, jsonify, request, session
 
-from models import db, User, LoginCode, utcnow
+from models import db, User, LoginCode, GENDERS, utcnow
 
 bp = Blueprint("account", __name__)
 
@@ -54,6 +57,7 @@ MAX_ATTEMPTS = 5          # wrong tries allowed per code
 RESEND_SECONDS = 60       # wait this long before asking for another code
 PER_PHONE_PER_HOUR = 5
 PER_IP_PER_HOUR = 20
+MIN_AGE, MAX_AGE = 12, 120   # allowed ages for an account (change MIN_AGE to 18 for adults only)
 
 # Kurdish and Arabic keyboards type these digits. Turn them into 0-9.
 DIGITS = str.maketrans("٠١٢٣٤٥٦٧٨٩۰۱۲۳۴۵۶۷۸۹", "01234567890123456789")
@@ -236,11 +240,28 @@ def me():
 @bp.route("/api/account/me", methods=["PUT"])
 @user_required
 def update_me(user):
+    """Save name, age and gender. All three are required; the answer lists any that are wrong."""
     data = request.get_json(silent=True) or {}
-    # Keep letters, spaces and normal punctuation; drop invisible control characters.
+    # Name: drop invisible control characters and extra spaces.
     name = re.sub(r"[\x00-\x1f\x7f]", "", str(data.get("name", "")))
     name = " ".join(name.split())[:80]
-    user.name = name or None
+    age_digits = only_digits(data.get("age"))[:3]
+    age = int(age_digits) if age_digits else None
+    gender = str(data.get("gender", "")).strip().lower()
+
+    wrong = []
+    if len(name) < 2:
+        wrong.append("name")
+    if age is None or not (MIN_AGE <= age <= MAX_AGE):
+        wrong.append("age")
+    if gender not in GENDERS:
+        wrong.append("gender")
+    if wrong:
+        return jsonify({"error": "invalid", "fields": wrong, "min_age": MIN_AGE, "max_age": MAX_AGE}), 400
+
+    user.name = name
+    user.birth_year = utcnow().year - age
+    user.gender = gender
     db.session.commit()
     return jsonify({"user": user_json(user)})
 

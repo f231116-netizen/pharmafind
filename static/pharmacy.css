@@ -143,3 +143,21 @@
 
 /* iPhone "Add to Home Screen": keep the header clear of the status bar */
 .ph-page .top { padding-top: max(14px, env(safe-area-inset-top)); }
+
+/* ---------- Reservations tab (Phase 7) ---------- */
+.ph-tabs button .count.new { background: #ff4d6d; color: #fff; }
+.po-group { display: flex; align-items: center; gap: 8px; font-size: 1rem; margin: 18px 0 10px; }
+.po-group:first-child { margin-top: 4px; }
+.po-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 14px; }
+.ph-order { display: grid; gap: 8px; align-content: start; }
+.po-customer { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 10px; }
+.po-who { color: var(--muted); font-size: .88rem; }
+.po-customer a { margin-inline-start: auto; color: var(--brand); font-weight: 600; text-decoration: none; }
+.po-note { margin: 0; padding: 8px 10px; border-radius: 8px; background: var(--bg); font-size: .88rem; }
+.po-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+.po-reject, .po-pickup { display: flex; gap: 8px; align-items: flex-end; flex-wrap: wrap; }
+.po-reject .field, .po-pickup .field { flex: 1 1 140px; }
+.po-pickup input { font-size: 1.2rem; letter-spacing: .3em; text-align: center; }
+.btn-primary.danger { background: var(--warn); }
+.btn-primary.danger:hover { background: #8f3608; }
+.ph-order .form-error { margin: 0; }

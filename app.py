@@ -6,6 +6,7 @@ Phase 3: alternatives (same active ingredient), medicine info
 Phase 4: AI scanner - barcode, text reading (OCR) and visual matching of box photos
 Phase 5: pharmacist dashboard (pharmacy_routes.py) - login, stock, demand insights
 Phase 6: customer accounts (account_routes.py) - phone number + one-time code; PostgreSQL support
+Phase 7: reservations (order_routes.py) - reserve at one pharmacy, pay and collect there
 
 Run:  python app.py   then open http://127.0.0.1:5000
 """
@@ -16,11 +17,12 @@ from datetime import timedelta
 import numpy as np
 from flask import Flask, jsonify, render_template, abort, request
 
-from models import db, Pharmacy, Medicine, Stock, SearchLog, Barcode, iso_utc
+from models import db, Pharmacy, Medicine, Stock, SearchLog, Barcode, iso_utc, add_missing_columns
 from search import search_medicines, haversine_km, compare_medicines
 from seed_data import PHOTO_FOLDERS
 from pharmacy_routes import bp as pharmacy_bp
 from account_routes import bp as account_bp
+from order_routes import bp as order_bp
 
 BASE_DIR = os.path.abspath(os.path.dirname(__file__))
 # Set to 1 on the live website (the Dockerfile does this). Locally it stays off.
@@ -74,10 +76,12 @@ def create_app():
     db.init_app(app)
     with app.app_context():
         db.create_all()
+        add_missing_columns(db.engine)   # new columns (e.g. users.gender) for an older database
 
     register_routes(app)
     app.register_blueprint(pharmacy_bp)
     app.register_blueprint(account_bp)
+    app.register_blueprint(order_bp)
     return app
 
 

@@ -8,11 +8,15 @@ Tables:
   search_log  - every search (what, how, where), for the pharmacist dashboard
   users       - customer accounts, logged in with phone number + one-time code (Phase 6)
   login_codes - the one-time codes sent to phones (only a hash is stored)  (Phase 6)
+  orders      - reservations: a customer reserves medicines at one pharmacy and picks them up (Phase 7)
+  order_items - the medicines in each reservation, with the price at that moment  (Phase 7)
 
-seed.py resets only the demo tables. users and login_codes are never wiped by it.
+seed.py resets the demo tables (and the reservations, which belong to the demo pharmacies).
+users and login_codes are never wiped by it.
 """
 from datetime import datetime, timezone
 
+import sqlalchemy as sa
 from flask_sqlalchemy import SQLAlchemy
 from werkzeug.security import generate_password_hash, check_password_hash
 
@@ -85,6 +89,7 @@ class Medicine(db.Model):
     general_use_ar = db.Column(db.String(255))  # Arabic
     general_use_ku = db.Column(db.String(255))  # Kurdish (Sorani)
     rx_required = db.Column(db.Boolean, default=False)    # needs a prescription
+    controlled = db.Column(db.Boolean, default=False)     # e.g. tramadol: never reserved online (Phase 7)
     from_real_box = db.Column(db.Boolean, default=False)  # True = we photographed this box
 
     stock_items = db.relationship("Stock", back_populates="medicine", cascade="all, delete-orphan")
@@ -104,6 +109,7 @@ class Medicine(db.Model):
             "general_use_ar": self.general_use_ar,
             "general_use_ku": self.general_use_ku,
             "rx_required": self.rx_required,
+            "controlled": bool(self.controlled),
             "from_real_box": self.from_real_box,
             "barcodes": [b.code for b in self.barcodes],
         }
@@ -161,23 +167,42 @@ class SearchLog(db.Model):
 
 
 # ---------------------------------------------------------------- Phase 6: customer accounts
+GENDERS = ("male", "female")
+
+
 class User(db.Model):
     """A customer. There is no password: they log in with a one-time code sent to their phone.
-    Guests don't need an account; it is only needed to order (Phase 7)."""
+    Guests don't need an account; it is only needed to reserve medicines (Phase 7).
+    Name, age and gender are required before reserving: the pharmacist needs them to check
+    that a medicine is safe for this person."""
     __tablename__ = "users"
 
     id = db.Column(db.Integer, primary_key=True)
     phone = db.Column(db.String(20), unique=True, nullable=False, index=True)  # +9647701234567
     name = db.Column(db.String(80))
+    # We ask for the age, but save the year of birth, so the age is still right next year.
+    birth_year = db.Column(db.Integer)
+    gender = db.Column(db.String(10))     # "male" or "female"
     verified = db.Column(db.Boolean, default=False, nullable=False)  # True once a code was confirmed
     created_at = db.Column(db.DateTime(timezone=True), default=utcnow, nullable=False)
     last_login_at = db.Column(db.DateTime(timezone=True))
+
+    @property
+    def age(self):
+        return utcnow().year - self.birth_year if self.birth_year else None
+
+    @property
+    def profile_complete(self):
+        return bool(self.name and self.birth_year and self.gender in GENDERS)
 
     def to_dict(self):
         return {
             "id": self.id,
             "phone": self.phone,
             "name": self.name,
+            "age": self.age,
+            "gender": self.gender,
+            "profile_complete": self.profile_complete,
             "verified": self.verified,
             "created_at": iso_utc(self.created_at),
         }
@@ -198,6 +223,91 @@ class LoginCode(db.Model):
     used = db.Column(db.Boolean, default=False, nullable=False)
 
 
-# Tables that hold demo data. seed.py deletes and rebuilds only these.
+# ---------------------------------------------------------------- Phase 7: reservations
+# How a reservation moves:   pending -> confirmed -> ready -> picked_up
+#                                    \-> cancelled (by the customer or the pharmacy) / expired
+ORDER_OPEN = ("pending", "confirmed", "ready")
+ORDER_CLOSED = ("picked_up", "cancelled", "expired")
+
+
+class Order(db.Model):
+    """A reservation: medicines from ONE pharmacy, paid and collected at the pharmacy.
+    Stock is taken off when the pharmacist confirms, and given back if it is cancelled
+    or not collected in time."""
+    __tablename__ = "orders"
+
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False, index=True)
+    pharmacy_id = db.Column(db.Integer, db.ForeignKey("pharmacies.id"), nullable=False, index=True)
+    status = db.Column(db.String(20), nullable=False, default="pending", index=True)
+    pickup_code = db.Column(db.String(8), nullable=False)   # the customer shows it at the pharmacy
+    note = db.Column(db.String(200))                        # optional message to the pharmacist
+    total_iqd = db.Column(db.Integer, nullable=False)
+    created_at = db.Column(db.DateTime(timezone=True), default=utcnow, nullable=False, index=True)
+    confirmed_at = db.Column(db.DateTime(timezone=True))
+    ready_at = db.Column(db.DateTime(timezone=True))
+    hold_until = db.Column(db.DateTime(timezone=True))       # after this, a confirmed order expires
+    closed_at = db.Column(db.DateTime(timezone=True))        # picked up, cancelled or expired
+    cancelled_by = db.Column(db.String(10))                  # customer | pharmacy | system
+    cancel_reason = db.Column(db.String(30))                 # out_of_stock | other | not_collected | ...
+
+    user = db.relationship("User")
+    pharmacy = db.relationship("Pharmacy")
+    items = db.relationship("OrderItem", back_populates="order", cascade="all, delete-orphan",
+                            order_by="OrderItem.id")
+
+    def to_dict(self):
+        return {
+            "id": self.id,
+            "status": self.status,
+            "pickup_code": self.pickup_code,
+            "note": self.note,
+            "total_iqd": self.total_iqd,
+            "created_at": iso_utc(self.created_at),
+            "confirmed_at": iso_utc(self.confirmed_at),
+            "ready_at": iso_utc(self.ready_at),
+            "hold_until": iso_utc(self.hold_until),
+            "closed_at": iso_utc(self.closed_at),
+            "cancelled_by": self.cancelled_by,
+            "cancel_reason": self.cancel_reason,
+            "items": [i.to_dict() for i in self.items],
+        }
+
+
+class OrderItem(db.Model):
+    __tablename__ = "order_items"
+
+    id = db.Column(db.Integer, primary_key=True)
+    order_id = db.Column(db.Integer, db.ForeignKey("orders.id"), nullable=False, index=True)
+    medicine_id = db.Column(db.Integer, db.ForeignKey("medicines.id"), nullable=False)
+    quantity = db.Column(db.Integer, nullable=False)
+    price_iqd = db.Column(db.Integer, nullable=False)   # price per box when the reservation was made
+
+    order = db.relationship("Order", back_populates="items")
+    medicine = db.relationship("Medicine")
+
+    def to_dict(self):
+        return {"medicine": self.medicine.to_dict(), "quantity": self.quantity, "price_iqd": self.price_iqd}
+
+
+# Tables that seed.py deletes and rebuilds. Reservations are included because they point
+# at demo pharmacies and medicines (after a reset those ids belong to other rows).
 DEMO_TABLES = [Pharmacy.__table__, Medicine.__table__, Barcode.__table__, Stock.__table__,
-               SearchLog.__table__]
+               SearchLog.__table__, Order.__table__, OrderItem.__table__]
+
+
+def add_missing_columns(engine):
+    """A very small "migration": when we add a new column to a model (like users.gender),
+    an existing database doesn't have it yet. This adds it, so old databases keep working.
+    (New tables are made by db.create_all(); this only handles new columns.)"""
+    inspector = sa.inspect(engine)
+    with engine.begin() as conn:
+        for table in db.metadata.sorted_tables:
+            if not inspector.has_table(table.name):
+                continue
+            have = {c["name"] for c in inspector.get_columns(table.name)}
+            for col in table.columns:
+                if col.name not in have:
+                    col_type = col.type.compile(dialect=engine.dialect)
+                    conn.execute(sa.text(f'ALTER TABLE {table.name} ADD COLUMN {col.name} {col_type}'))
+                    print(f"[PharmaFind] Added new column {table.name}.{col.name}", flush=True)
