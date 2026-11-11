@@ -31,7 +31,8 @@ SIMILAR_BITS = 6                      # dHash: 6 or fewer different bits out of 
 SIMILAR_DAYS = 180                    # compare with prescriptions from the last 6 months
 # A reservation in one of these states has "used" its prescription (open, or medicine handed over).
 # Cancelled or expired ones haven't: no medicine was given, so the paper can be used again.
-USED_STATUSES = ("pending", "confirmed", "ready", "picked_up")
+USED_STATUSES = ("pending", "confirmed", "ready", "out_for_delivery", "picked_up", "delivered")
+APPROVED_USED = ("confirmed", "ready", "out_for_delivery", "picked_up", "delivered")
 
 # Words that are not part of the doctor's name ("Dr. Karwan" = "Karwan").
 _TITLES = {normalize(w) for w in ("dr", "doctor", "prof", "د", "دكتور", "الدكتور", "دكتورة", "دکتۆر", "پزیشک")}
@@ -114,5 +115,5 @@ def same_paper_used(rx, key, issued_on):
             .filter(Prescription.id != rx.id, Prescription.user_id == rx.user_id,
                     Prescription.status == "approved", Prescription.doctor_key == key,
                     Prescription.issued_on == issued_on,
-                    Order.status.in_(("confirmed", "ready", "picked_up")))
+                    Order.status.in_(APPROVED_USED))
             .first())

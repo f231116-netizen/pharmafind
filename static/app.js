@@ -125,6 +125,7 @@ function setLocation(lat, lng, key, vars) {
   state.lng = lng;
   setLocMessage(key, vars);
   if (state.medicineId) loadPharmacies(); // distances change, so reload the results
+  if (window.onLocationSet) window.onLocationSet();   // Phase 9: the delivery address uses it
 }
 
 // "Set my location" -> choose how.

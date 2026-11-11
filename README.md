@@ -606,6 +606,74 @@ The "looks the same" check is only a warning, because prescriptions from the sam
 
 ---
 
+# Phase 9 — Delivery by drivers, cash at the door (branch `phase6`)
+
+Like Talabat: a driver brings the reservation to the customer's home. The checks happen at the door,
+and payment is **cash** (no online payment). Prescription medicines can be delivered too: the driver
+must check and take the **original paper** at the door.
+
+> **Check the law first.** Before this is used with real people, ask a pharmacist or the Pharmacists
+> Syndicate whether delivering medicines (especially prescription ones) is allowed in the Kurdistan Region.
+
+## How a delivery goes
+
+1. **Customer**: basket → **Delivery** → writes the address (area, street, house, landmark) and sets the
+   location on the map → sees the fee → **Send reservation**. Payment: cash to the driver.
+2. **Pharmacist**: confirms (and checks the prescription photo, Phase 8) → **Mark as ready**.
+3. **Driver** (`/driver`): sees the job: pharmacy, distance, fee and cash to collect, but **not** the
+   customer's name, phone or address. Taps **Take this job** (first driver wins). Now sees the customer.
+4. **Pharmacist**: the driver arrives → **Given to Aram Omar** → *out for delivery*.
+5. **Driver at the door**: for prescriptions, checks the original paper shows the doctor, date and patient
+   the pharmacist wrote down, and takes it · ticks **cash collected** · types the customer's
+   **4-digit code** → **Delivered**. Or **Couldn't deliver?** (not home / no prescription paper /
+   refused / other) → the reservation is cancelled and the boxes go back to the stock.
+6. **Customer** sees every step in **My reservations**: confirmed → driver collecting → on the way
+   ("have 24,000 IQD in cash ready") → delivered.
+
+## Rules
+
+| Rule | Value (in the code) |
+|---|---|
+| Delivery fee | 2,000 IQD up to 3 km, then +500 IQD per km (`DELIVERY_*` in `order_routes.py`) |
+| Furthest delivery | 15 km from the pharmacy |
+| Jobs a driver can carry at once | 3 (`MAX_ACTIVE_JOBS` in `driver_routes.py`) |
+| Cancel while out for delivery | not possible (customer or pharmacy) |
+| Driver sees the prescription photo | **never**: only doctor, date and patient's name |
+| Payment | cash only. The driver gives the medicine money to the pharmacy and keeps the fee (not tracked in the app yet) |
+
+## Demo drivers
+
+`aram`, `dana`, `hemn`, password **`driver123`** (in `seed_data.py`, invented like the pharmacies).
+Log in at http://127.0.0.1:5000/driver. The page is made for phones and updates itself every 15 seconds.
+
+## Files
+
+- `driver_routes.py` (new): driver login, jobs, take / give back / delivered / couldn't deliver.
+- `order_routes.py`: delivery fee and quote (`/api/delivery/quote`), delivery details on reservations,
+  pharmacist **handover**.
+- `templates/driver.html`, `static/driver.js`, `static/driver.css` (new): the driver page.
+- New table `drivers`; new delivery columns on `orders` (added to older databases automatically).
+
+## Try it (about 4 minutes)
+
+1. `python seed.py`, then `python app.py`.
+2. App: **Set my location** (or choose on the map) → search **Panadol** → **Reserve** at Shifa → **Basket** →
+   **Delivery** → write an address → **Send reservation** (log in if asked). Note the code.
+3. `/pharmacy` as **shifa / pharma123** → **Reservations** → **Confirm** → **Mark as ready**.
+4. On your phone (or another tab) open `/driver` as **aram / driver123** → **Take this job**.
+5. Back in `/pharmacy` → **Given to Aram Omar**.
+6. `/driver` → tick **cash collected**, type the code → **Delivered**. "My reservations" shows **Delivered**.
+
+## Not done yet
+
+- Live driver location on a map for the customer (Talabat shows the rider moving).
+- Settling the cash between drivers and pharmacies, and paying drivers.
+- SMS/WhatsApp messages ("your driver is on the way").
+- Online payment (FIB, FastPay, ZainCash): needs a merchant account with them first.
+
+
+---
+
 ## Before the showcase (24 Nov)
 
 Switch back to the showcase version, or `start_showcase.bat` will run this branch:

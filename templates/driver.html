@@ -1,0 +1,92 @@
+<!doctype html>
+<html lang="en" dir="ltr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>PharmaFind for Drivers</title>
+  <link rel="icon" type="image/png" href="{{ url_for('static', filename='icons/favicon.png') }}">
+  <meta name="theme-color" content="#5b2be0">
+  <link rel="manifest" href="{{ url_for('static', filename='manifest.webmanifest') }}">
+  <link rel="apple-touch-icon" href="{{ url_for('static', filename='icons/apple-touch-icon.png') }}">
+  <meta name="robots" content="noindex">
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+  <link rel="stylesheet" href="{{ url_for('static', filename='pharmacy.css') }}">
+  <link rel="stylesheet" href="{{ url_for('static', filename='driver.css') }}">
+</head>
+<body class="ph-page drv-page">
+  <!-- Phase 9: delivery drivers (like Talabat riders). Payment is always cash. -->
+  <div id="lang-picker" class="lang-picker" hidden>
+    <div class="lang-card">
+      <div class="logo big">+</div>
+      <h2>PharmaFind</h2>
+      <p class="lang-hint">
+        <span dir="rtl">زمانێک هەڵبژێرە</span> · <span dir="rtl">اختر اللغة</span> · Choose a language
+      </p>
+      <div class="lang-options">
+        <button data-lang="ku" dir="rtl">کوردی</button>
+        <button data-lang="ar" dir="rtl">العربية</button>
+        <button data-lang="en">English</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="toast" class="toast" role="status" hidden></div>
+
+  <header class="top">
+    <div class="brand">
+      <div class="logo">+</div>
+      <div>
+        <h1>PharmaFind</h1>
+        <p class="tag" data-i18n="drv_tagline"></p>
+      </div>
+    </div>
+    <div class="top-actions">
+      <button id="lang-btn" class="lang-btn" type="button"></button>
+      <button id="logout-btn" class="lang-btn" type="button" data-i18n="ph_logout" hidden></button>
+    </div>
+  </header>
+
+  <!-- Login -->
+  <main id="login-view" class="ph-login" hidden>
+    <form id="login-form" class="login-card">
+      <div class="logo big">+</div>
+      <h2 data-i18n="drv_login_title"></h2>
+      <p class="muted" data-i18n="drv_login_sub"></p>
+      <label class="field">
+        <span data-i18n="ph_username"></span>
+        <input id="login-user" autocomplete="username" autocapitalize="none" spellcheck="false" required>
+      </label>
+      <label class="field">
+        <span data-i18n="ph_password"></span>
+        <input id="login-pass" type="password" autocomplete="current-password" required>
+      </label>
+      <p id="login-error" class="form-error" hidden></p>
+      <button class="btn-primary full" type="submit" data-i18n="ph_login_btn"></button>
+      <p class="muted small" data-i18n="drv_demo_hint"></p>
+    </form>
+  </main>
+
+  <!-- Jobs -->
+  <main id="jobs-view" class="ph-main" hidden>
+    <section class="ph-head">
+      <div>
+        <h2 id="drv-name"></h2>
+        <p class="muted" data-i18n="drv_sub"></p>
+      </div>
+      <button id="refresh-btn" class="btn-ghost" type="button" data-i18n="drv_refresh"></button>
+    </section>
+
+    <h3 class="po-group"><span data-i18n="drv_my_jobs"></span> <span id="mine-count" class="count">0</span></h3>
+    <div id="my-jobs" class="po-grid"></div>
+
+    <h3 class="po-group"><span data-i18n="drv_available"></span> <span id="avail-count" class="count new">0</span></h3>
+    <div id="available-jobs" class="po-grid"></div>
+
+    <h3 class="po-group"><span data-i18n="drv_done_today"></span></h3>
+    <div id="done-jobs" class="po-grid"></div>
+  </main>
+
+  <script src="{{ url_for('static', filename='i18n.js') }}"></script>
+  <script src="{{ url_for('static', filename='driver.js') }}"></script>
+</body>
+</html>

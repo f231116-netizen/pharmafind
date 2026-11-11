@@ -293,6 +293,15 @@ PHOTO_FOLDERS = {
 # (Shifa Pharmacy -> "shifa"), password = DEMO_PASSWORD. Demo only!
 DEMO_PASSWORD = "pharma123"
 
+# Phase 9: demo delivery drivers (invented). Log in at /driver with these usernames and DRIVER_PASSWORD.
+# (name, phone, username)
+DEMO_DRIVERS = [
+    ("Aram Omar",    "0750 410 2201", "aram"),
+    ("Dana Rasul",   "0770 552 3802", "dana"),
+    ("Hemn Kareem",  "0751 663 9403", "hemn"),
+]
+DRIVER_PASSWORD = "driver123"
+
 # Fake search history for the last 14 days, so the dashboard has something to show.
 DEMO_SEARCH_DAYS = 14
 DEMO_SEARCH_COUNT = 700

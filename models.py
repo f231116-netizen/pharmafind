@@ -11,6 +11,7 @@ Tables:
   orders      - reservations: a customer reserves medicines at one pharmacy and picks them up (Phase 7)
   order_items - the medicines in each reservation, with the price at that moment  (Phase 7)
   prescriptions - the photo of a doctor's prescription for a reservation, and the pharmacist's check (Phase 8)
+  drivers     - delivery drivers who bring reservations to the customer (Phase 9)
 
 seed.py resets the demo tables (and the reservations, which belong to the demo pharmacies).
 users and login_codes are never wiped by it.
@@ -225,17 +226,44 @@ class LoginCode(db.Model):
     used = db.Column(db.Boolean, default=False, nullable=False)
 
 
+# ---------------------------------------------------------------- Phase 9: delivery drivers
+class Driver(db.Model):
+    """A delivery driver (like a Talabat rider). Drivers aren't tied to one pharmacy: they see the
+    delivery jobs that are packed and waiting, take one, fetch it from the pharmacy and bring it
+    to the customer. They collect the cash and, for prescription medicines, the original paper."""
+    __tablename__ = "drivers"
+
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(80), nullable=False)
+    phone = db.Column(db.String(30), nullable=False)
+    username = db.Column(db.String(40), unique=True, nullable=False, index=True)
+    password_hash = db.Column(db.String(256), nullable=False)
+    active = db.Column(db.Boolean, default=True, nullable=False)
+    created_at = db.Column(db.DateTime(timezone=True), default=utcnow, nullable=False)
+
+    def set_password(self, password):
+        self.password_hash = generate_password_hash(password)
+
+    def check_password(self, password):
+        return bool(self.password_hash) and check_password_hash(self.password_hash, password)
+
+    def to_dict(self):
+        return {"id": self.id, "name": self.name, "phone": self.phone}
+
+
 # ---------------------------------------------------------------- Phase 7: reservations
-# How a reservation moves:   pending -> confirmed -> ready -> picked_up
-#                                    \-> cancelled (by the customer or the pharmacy) / expired
-ORDER_OPEN = ("pending", "confirmed", "ready")
-ORDER_CLOSED = ("picked_up", "cancelled", "expired")
+# How a reservation moves:
+#   pick up at the pharmacy:  pending -> confirmed -> ready -> picked_up
+#   delivery (Phase 9):       pending -> confirmed -> ready -> out_for_delivery -> delivered
+#   any time before that:     -> cancelled (customer, pharmacy or driver) / expired
+ORDER_OPEN = ("pending", "confirmed", "ready", "out_for_delivery")
+ORDER_CLOSED = ("picked_up", "delivered", "cancelled", "expired")
 
 
 class Order(db.Model):
-    """A reservation: medicines from ONE pharmacy, paid and collected at the pharmacy.
-    Stock is taken off when the pharmacist confirms, and given back if it is cancelled
-    or not collected in time."""
+    """A reservation: medicines from ONE pharmacy. Collected at the pharmacy, or (Phase 9)
+    brought by a driver. Paid in cash either way. Stock is taken off when the pharmacist
+    confirms, and given back if it is cancelled or not collected in time."""
     __tablename__ = "orders"
 
     id = db.Column(db.Integer, primary_key=True)
@@ -250,11 +278,24 @@ class Order(db.Model):
     ready_at = db.Column(db.DateTime(timezone=True))
     hold_until = db.Column(db.DateTime(timezone=True))       # after this, a confirmed order expires
     closed_at = db.Column(db.DateTime(timezone=True))        # picked up, cancelled or expired
-    cancelled_by = db.Column(db.String(10))                  # customer | pharmacy | system
+    cancelled_by = db.Column(db.String(10))                  # customer | pharmacy | driver | system
     cancel_reason = db.Column(db.String(30))                 # out_of_stock | other | not_collected | ...
+    # Phase 9: delivery
+    fulfilment = db.Column(db.String(10), default="pickup")  # pickup | delivery
+    address = db.Column(db.String(200))                      # "Salim Street, near ..., house 12"
+    delivery_lat = db.Column(db.Float)
+    delivery_lng = db.Column(db.Float)
+    delivery_km = db.Column(db.Float)                        # pharmacy -> customer, straight line
+    delivery_fee_iqd = db.Column(db.Integer, default=0)
+    driver_id = db.Column(db.Integer, db.ForeignKey("drivers.id"), index=True)
+    driver_assigned_at = db.Column(db.DateTime(timezone=True))
+    out_for_delivery_at = db.Column(db.DateTime(timezone=True))
+    cash_collected = db.Column(db.Boolean)                  # the driver ticked "cash collected"
+    paper_collected = db.Column(db.Boolean)                 # the driver took the original prescription
 
     user = db.relationship("User")
     pharmacy = db.relationship("Pharmacy")
+    driver = db.relationship("Driver")
     items = db.relationship("OrderItem", back_populates="order", cascade="all, delete-orphan",
                             order_by="OrderItem.id")
     prescription = db.relationship("Prescription", back_populates="order", uselist=False,
@@ -276,6 +317,16 @@ class Order(db.Model):
             "cancel_reason": self.cancel_reason,
             "items": [i.to_dict() for i in self.items],
             "prescription": self.prescription.to_dict() if self.prescription else None,
+            # Phase 9: delivery (payment is always cash)
+            "fulfilment": self.fulfilment or "pickup",
+            "address": self.address,
+            "delivery_km": self.delivery_km,
+            "delivery_fee_iqd": self.delivery_fee_iqd or 0,
+            "grand_total_iqd": self.total_iqd + (self.delivery_fee_iqd or 0),
+            "driver": self.driver.to_dict() if self.driver else None,
+            "out_for_delivery_at": iso_utc(self.out_for_delivery_at),
+            "cash_collected": self.cash_collected,
+            "paper_collected": self.paper_collected,
         }
 
 
@@ -343,7 +394,8 @@ class Prescription(db.Model):
 # Tables that seed.py deletes and rebuilds. Reservations (and their prescriptions) are included
 # because they point at demo pharmacies and medicines (after a reset those ids belong to other rows).
 DEMO_TABLES = [Pharmacy.__table__, Medicine.__table__, Barcode.__table__, Stock.__table__,
-               SearchLog.__table__, Order.__table__, OrderItem.__table__, Prescription.__table__]
+               SearchLog.__table__, Order.__table__, OrderItem.__table__, Prescription.__table__,
+               Driver.__table__]   # the drivers are demo accounts too (Phase 9)
 
 
 def add_missing_columns(engine):

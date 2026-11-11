@@ -24,6 +24,16 @@ Phase 8 - prescriptions:
   - At pickup the pharmacist must tick that they took (or stamped) the original paper.
   - The photo is deleted as soon as the reservation is finished (collected, cancelled or expired).
 
+Phase 9 - delivery (like Talabat), paid in cash:
+  GET  /api/delivery/quote?pharmacy_id=&lat=&lng=   distance and delivery fee (no login needed)
+  POST /api/orders  with "fulfilment": "delivery", "address", "lat", "lng"
+  POST /api/pharmacy/orders/<id>/handover    ready -> out_for_delivery (the driver took the bag)
+  - A driver takes the job on the /driver page (driver_routes.py), fetches it from the pharmacy and
+    at the door: types the customer's code, takes the original prescription paper (if any),
+    collects the cash -> delivered.
+  - Delivery fee: 2,000 IQD up to 3 km, then 500 IQD for each extra km. At most 15 km.
+  - A reservation that is out for delivery can't be cancelled by the customer or the pharmacy.
+
 Rules:
   - one reservation = one pharmacy; at most 10 different medicines and 5 boxes of each
   - medicines that need a prescription need a photo of it (Phase 8)
@@ -36,6 +46,7 @@ Rules:
 """
 import hmac
 import json
+import math
 import re
 import secrets
 from datetime import date, timedelta
@@ -47,6 +58,7 @@ from models import db, Medicine, Order, OrderItem, Pharmacy, Prescription, Stock
 from pharmacy_routes import login_required as pharmacist_required
 from prescriptions import (PhotoError, doctor_key, exact_copy_in_use, process_photo, same_paper_used,
                            similar_in_use)
+from search import haversine_km
 
 bp = Blueprint("orders", __name__)
 
@@ -58,6 +70,28 @@ PENDING_HOURS = 24         # a reservation the pharmacy never answered expires a
 RX_MAX_AGE_DAYS = 30       # an older prescription can't be approved (ask a pharmacist what is right)
 RX_REASONS = ("rx_unreadable", "rx_invalid", "rx_mismatch", "rx_used")
 REJECT_REASONS = ("out_of_stock", *RX_REASONS, "other")
+# Phase 9: delivery fee (demo numbers; change them here)
+DELIVERY_BASE_FEE = 2000   # IQD, for the first DELIVERY_BASE_KM
+DELIVERY_BASE_KM = 3
+DELIVERY_PER_KM = 500      # IQD for each extra (started) km
+DELIVERY_MAX_KM = 15       # further than this: pick up only
+
+
+def delivery_fee(km):
+    return DELIVERY_BASE_FEE + DELIVERY_PER_KM * max(0, math.ceil(km - DELIVERY_BASE_KM))
+
+
+def is_delivery(order):
+    return order.fulfilment == "delivery"
+
+
+def read_point(src):
+    """lat/lng from a request -> (lat, lng) or None."""
+    try:
+        lat, lng = float(src.get("lat")), float(src.get("lng"))
+    except (TypeError, ValueError):
+        return None
+    return (lat, lng) if -90 <= lat <= 90 and -180 <= lng <= 180 else None
 
 
 # ---------------------------------------------------------------- helpers
@@ -153,6 +187,22 @@ def photo_response(rx):
 
 
 # ---------------------------------------------------------------- customer
+@bp.route("/api/delivery/quote")
+def delivery_quote():
+    """How far, and how much delivery costs, from this pharmacy to this point."""
+    try:
+        pharmacy = db.session.get(Pharmacy, int(request.args.get("pharmacy_id", "")))
+    except ValueError:
+        pharmacy = None
+    point = read_point(request.args)
+    if not pharmacy or not point:
+        return error("bad_request")
+    km = round(haversine_km(pharmacy.latitude, pharmacy.longitude, *point), 2)
+    ok = km <= DELIVERY_MAX_KM
+    return jsonify({"km": km, "ok": ok, "fee_iqd": delivery_fee(km) if ok else None,
+                    "max_km": DELIVERY_MAX_KM})
+
+
 @bp.route("/api/orders", methods=["POST"])
 @user_required
 def create_order(user):
@@ -184,6 +234,24 @@ def create_order(user):
     pharmacy = db.session.get(Pharmacy, pharmacy_id)
     if not pharmacy:
         return error("unknown_pharmacy", 404)
+
+    # Phase 9: pick up at the pharmacy, or delivery to an address (cash either way)
+    fulfilment = data.get("fulfilment") or "pickup"
+    if fulfilment not in ("pickup", "delivery"):
+        return error("bad_request")
+    delivery = {"delivery_fee_iqd": 0}
+    if fulfilment == "delivery":
+        address = " ".join(re.sub(r"[\x00-\x1f\x7f]", " ", str(data.get("address") or "")).split())[:200]
+        if len(address) < 8:
+            return error("bad_address")
+        point = read_point(data)
+        if not point:
+            return error("bad_location")
+        km = round(haversine_km(pharmacy.latitude, pharmacy.longitude, *point), 2)
+        if km > DELIVERY_MAX_KM:
+            return error("too_far", km=km, max_km=DELIVERY_MAX_KM)
+        delivery.update(address=address, delivery_lat=point[0], delivery_lng=point[1],
+                        delivery_km=km, delivery_fee_iqd=delivery_fee(km))
 
     expire_old_orders()
     open_now = Order.query.filter(Order.user_id == user.id, Order.status.in_(ORDER_OPEN)).count()
@@ -226,7 +294,7 @@ def create_order(user):
     order = Order(user_id=user.id, pharmacy_id=pharmacy.id, status="pending",
                   pickup_code=f"{secrets.randbelow(10 ** 4):04d}", note=note or None,
                   total_iqd=sum(i.quantity * i.price_iqd for i in items), created_at=now, items=items,
-                  prescription=rx)
+                  prescription=rx, fulfilment=fulfilment, **delivery)
     db.session.add(order)
     db.session.commit()
     return jsonify({"order": customer_json(order)}), 201
@@ -248,6 +316,8 @@ def cancel_my_order(user, order_id):
     order = db.session.get(Order, order_id)
     if not order or order.user_id != user.id:
         return error("not_found", 404)
+    if order.status == "out_for_delivery":       # Phase 9: the driver is already on the way
+        return error("on_the_way", 409)
     fields = dict(closed_at=utcnow(), cancelled_by="customer", cancel_reason="customer")
     # Two steps, so we always know if boxes were already taken off (even if the pharmacist
     # confirms at this very moment): first try "confirmed/ready", then "pending".
@@ -391,6 +461,8 @@ def ready_order(ph, order_id):
 def pickup_order(ph, order_id):
     expire_old_orders()
     order = my_pharmacy_order(ph, order_id)
+    if is_delivery(order):           # Phase 9: the driver hands it over at the door instead
+        return error("is_delivery")
     body = request.get_json(silent=True) or {}
     code = only_digits(body.get("code"))
     if not hmac.compare_digest(code, order.pickup_code):
@@ -402,6 +474,26 @@ def pickup_order(ph, order_id):
     if not move(order, ("confirmed", "ready"), "picked_up", closed_at=utcnow()):
         return error("status_changed", 409)
     drop_photo(order)
+    db.session.commit()
+    return jsonify({"order": pharmacist_json(order)})
+
+
+@bp.route("/api/pharmacy/orders/<int:order_id>/handover", methods=["POST"])
+@pharmacist_required
+def handover_order(ph, order_id):
+    """Phase 9: the driver who took this job came to the pharmacy and got the bag."""
+    expire_old_orders()
+    order = my_pharmacy_order(ph, order_id)
+    if not is_delivery(order):
+        return error("not_delivery")
+    if order.driver_id is None:
+        return error("no_driver", 409)
+    # Only if it is still packed AND still has a driver (the driver may drop the job at this moment).
+    changed = (Order.query.filter(Order.id == order.id, Order.status == "ready", Order.driver_id.isnot(None))
+               .update({Order.status: "out_for_delivery", Order.out_for_delivery_at: utcnow()},
+                       synchronize_session=False))
+    if changed != 1:
+        return error("status_changed", 409)
     db.session.commit()
     return jsonify({"order": pharmacist_json(order)})
 

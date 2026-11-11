@@ -177,3 +177,9 @@
 .rx-view { overflow: auto; background: #1c1830; display: grid; place-items: center; min-height: 200px; }
 .rx-view img { display: block; max-width: 100%; max-height: calc(100dvh - 160px); cursor: zoom-in; }
 .rx-view img.zoomed { max-width: none; max-height: none; cursor: zoom-out; }
+
+/* ---------- Delivery (Phase 9) ---------- */
+.badge.del { background: #e3f0ff; color: #1d5fb8; margin-inline-start: 6px; }
+.po-driver { margin: 0; font-size: .88rem; font-weight: 600; color: #1d5fb8; }
+.po-driver a { color: inherit; }
+.po-wait { margin: 0; align-self: center; flex: 1; }

@@ -1,0 +1,33 @@
+/* PharmaFind - driver page (Phase 9). Built on style.css + pharmacy.css; made for phones. */
+.drv-page .ph-main { max-width: 980px; }
+.drv-job { display: grid; gap: 10px; align-content: start; }
+.drv-job.done { opacity: .8; }
+.drv-from { margin: 0; font-size: .92rem; }
+.drv-facts { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+.drv-facts div { background: var(--bg); border-radius: 10px; padding: 8px 10px; display: grid; gap: 2px; }
+.drv-facts span { font-size: .72rem; color: var(--muted); }
+.drv-facts b { font-size: 1rem; color: var(--brand-dark); }
+.drv-steps { margin: 0; padding: 0; list-style: none; display: grid; gap: 8px; }
+.drv-steps li { border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; font-size: .9rem; }
+.drv-steps li.now { border: 2px solid var(--brand); background: var(--brand-soft); }
+.drv-steps li.done { opacity: .6; }
+.drv-steps li p { margin: 6px 0 0; }
+.drv-steps .drv-links, .drv-steps .drv-address { margin-top: 6px; }
+.drv-steps a { color: var(--brand); font-weight: 600; }
+.drv-address { font-weight: 600; }
+.drv-links { display: flex; gap: 8px; flex-wrap: wrap; }
+.drv-links .btn-ghost { padding: 6px 14px; font-size: .85rem; }
+.drv-cash { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; background: var(--ok-soft); color: var(--ok); padding: 10px 12px; border-radius: 10px; font-weight: 600; }
+.drv-cash b { font-size: 1.3rem; }
+.drv-rx { background: #fff6dc; color: #946200; border: 1px dashed #e0b84a; border-radius: 10px; padding: 10px 12px; font-size: .88rem; }
+.drv-rx p { margin: 4px 0 0; }
+.drv-door { display: grid; gap: 10px; padding: 12px; border: 2px solid var(--brand); border-radius: 12px; }
+.drv-door input[data-code] { font-size: 1.4rem; letter-spacing: .4em; text-align: center; }
+.drv-fail summary { cursor: pointer; color: var(--warn); font-weight: 600; font-size: .88rem; }
+.drv-fail[open] { display: grid; gap: 8px; }
+.drv-job .form-error { margin: 0; }
+
+@media (max-width: 420px) {
+  .drv-facts { grid-template-columns: 1fr 1fr; }
+  .drv-facts div:last-child { grid-column: 1 / -1; }
+}

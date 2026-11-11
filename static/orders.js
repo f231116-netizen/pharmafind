@@ -4,7 +4,12 @@
 // toast and fileToBlob (scan.js), and requireAccount, accountApi, ltr (account.js).
 
 const MAX_QTY = 5;                 // same limit as the server (order_routes.py)
-const OPEN_STATUSES = ["pending", "confirmed", "ready"];
+const OPEN_STATUSES = ["pending", "confirmed", "ready", "out_for_delivery"];
+// Phase 9: delivery. The price comes from the server (/api/delivery/quote); payment is cash.
+const delivery = { quote: null, key: "", waitingForLocation: false };
+const isDelivery = () => basket.fulfilment === "delivery";
+const locationIsSet = () => ["loc_ok", "loc_map"].includes(state.loc.key);   // not the city-centre default
+const quoteKey = () => (basket.pharmacy ? `${basket.pharmacy.id}:${state.lat}:${state.lng}` : "");
 const basket = loadBasket();       // { pharmacy, items: [{ medicine, quantity, price_iqd, available }], note }
 const myOrders = { list: [], timer: null, highlight: null, holdHours: 24, error: false };
 // The prescription photo stays only in memory (never in the browser's storage), and only until it is sent.
@@ -86,6 +91,9 @@ function renderBasket() {
   }
   const p = basket.pharmacy;
   const total = basket.items.reduce((s, i) => s + i.quantity * i.price_iqd, 0);
+  const del = isDelivery();
+  const q = del && locationIsSet() && delivery.key === quoteKey() ? delivery.quote : null;
+  const fee = q && q.ok ? q.fee_iqd : 0;
   body.innerHTML = `
     <div class="ord-pharmacy">
       <b><bdi>${esc(p.name)}</bdi></b>
@@ -105,7 +113,29 @@ function renderBasket() {
           </div>
         </li>`).join("")}
     </ul>
-    <div class="ord-total"><span>${esc(t("ord_total"))}</span><b><bdi>${money(total)}</bdi></b></div>
+    <div class="seg ful-seg">
+      <label><input type="radio" name="ful" value="pickup" ${del ? "" : "checked"}><span>${esc(t("ful_pickup"))}</span></label>
+      <label><input type="radio" name="ful" value="delivery" ${del ? "checked" : ""}><span>${esc(t("ful_delivery"))}</span></label>
+    </div>
+    ${del ? `
+      <section class="deliv-box">
+        <label class="acc-field">
+          <span>${esc(t("del_address"))}</span>
+          <textarea id="del-address" rows="2" maxlength="200" placeholder="${esc(t("del_address_ph"))}">${esc(basket.address || "")}</textarea>
+        </label>
+        <div class="del-loc">
+          <span>${esc(!locationIsSet() ? t("del_need_location") : q ? t("del_distance", { d: dist(q.km) }) : "…")}</span>
+          <button class="link-btn" type="button" id="del-set-loc">${esc(t(locationIsSet() ? "del_change_location" : "del_set_location"))}</button>
+        </div>
+        ${q && !q.ok ? `<p class="acc-error">${esc(t("del_too_far", { max: q.max_km }))}</p>` : ""}
+      </section>` : ""}
+    <div class="ord-sum">
+      ${del ? `
+        <div class="ord-total sub"><span>${esc(t("ord_subtotal"))}</span><bdi>${money(total)}</bdi></div>
+        <div class="ord-total sub"><span>${esc(t("del_fee"))}</span><bdi>${q && q.ok ? money(fee) : "–"}</bdi></div>` : ""}
+      <div class="ord-total"><span>${esc(t("ord_total"))}</span><b><bdi>${money(total + fee)}</bdi></b></div>
+      <p class="pay-line">${esc(t(del ? "pay_cash_driver" : "pay_cash_pharmacy"))}</p>
+    </div>
     ${needsRx() ? `
       <section class="rx-box">
         <b>${esc(t("rx_title"))}</b>
@@ -129,7 +159,7 @@ function renderBasket() {
       <span>${esc(t("ord_note"))}</span>
       <input id="basket-note" type="text" maxlength="200" placeholder="${esc(t("ord_note_ph"))}" value="${esc(basket.note || "")}">
     </label>
-    <p class="acc-soon">${esc(t("ord_how", { h: myOrders.holdHours }))}</p>
+    <p class="acc-soon">${esc(t(del ? "del_how" : "ord_how", { h: myOrders.holdHours }))}${del && needsRx() ? " " + esc(t("del_have_paper")) : ""}</p>
     <p id="basket-error" class="acc-error" role="alert" hidden></p>
     <button id="basket-send" class="btn-primary full" type="button">${esc(t("ord_send"))}</button>`;
 
@@ -151,6 +181,20 @@ function renderBasket() {
   }));
   $("basket-note").addEventListener("input", (e) => { basket.note = e.target.value; saveBasket(); });
   $("basket-send").addEventListener("click", sendReservation);
+
+  // Phase 9: pick up or delivery, address and map location
+  body.querySelectorAll('input[name="ful"]').forEach((r) => r.addEventListener("change", () => {
+    basket.fulfilment = r.value;
+    saveBasket();
+    renderBasket();
+  }));
+  if ($("del-address")) $("del-address").addEventListener("input", (e) => { basket.address = e.target.value; saveBasket(); });
+  if ($("del-set-loc")) $("del-set-loc").addEventListener("click", () => {
+    delivery.waitingForLocation = true;               // come back to the basket once it is set
+    closeModal($("basket-modal"));
+    openModal($("loc-chooser"));
+  });
+  refreshQuote();
 
   // Phase 8: the prescription photo (made smaller first, like the scanner does)
   if ($("rx-file")) $("rx-file").addEventListener("change", async (e) => {
@@ -174,7 +218,28 @@ function showBasketError(text) {
   $("basket-error").hidden = false;
 }
 
+// Ask the server what delivery costs from this pharmacy to the chosen location (once per place).
+async function refreshQuote() {
+  if (!isDelivery() || !basket.pharmacy || !locationIsSet()) return;
+  const key = quoteKey();
+  if (delivery.key === key) return;
+  delivery.key = key;
+  delivery.quote = null;
+  try {
+    const r = await fetch(`/api/delivery/quote?pharmacy_id=${basket.pharmacy.id}&lat=${state.lat}&lng=${state.lng}`);
+    if (r.ok) delivery.quote = await r.json();
+  } catch { /* offline: no price shown */ }
+  if (delivery.key === key && !$("basket-modal").hidden) renderBasket();
+}
+
+window.onLocationSet = () => {
+  if (!delivery.waitingForLocation) return;
+  delivery.waitingForLocation = false;
+  openBasket();
+};
+
 function openBasket() {
+  delivery.waitingForLocation = false;
   renderBasket();
   openModal($("basket-modal"));
 }
@@ -194,6 +259,9 @@ function orderErrorText(data) {
     case "not_a_photo": return t("rx_err_not_photo");
     case "photo_unavailable": return t("rx_err_unavailable");
     case "rx_already_used": return t("rx_err_used");
+    case "bad_address": return t("del_err_address");
+    case "bad_location": return t("del_need_location");
+    case "too_far": return t("del_too_far", { max: data.max_km });
     default: return t("ord_err_generic");
   }
 }
@@ -216,6 +284,11 @@ async function postReservation(payload) {
 function sendReservation() {
   if (!basket.items.length) return;
   if (needsRx() && !rxPhoto.blob) return showBasketError(t("rx_err_required"));   // ask before logging in
+  if (isDelivery()) {
+    if ((basket.address || "").trim().length < 8) return showBasketError(t("del_err_address"));
+    if (!locationIsSet()) return showBasketError(t("del_need_location"));
+    if (delivery.quote && !delivery.quote.ok) return showBasketError(t("del_too_far", { max: delivery.quote.max_km }));
+  }
   closeModal($("basket-modal"));                       // the login pop-up must not be hidden behind it
   window.requireAccount(async () => {
     openBasket();
@@ -227,6 +300,8 @@ function sendReservation() {
         pharmacy_id: basket.pharmacy.id,
         items: basket.items.map((i) => ({ medicine_id: i.medicine.id, quantity: i.quantity })),
         note: basket.note || "",
+        fulfilment: isDelivery() ? "delivery" : "pickup",
+        ...(isDelivery() ? { address: basket.address, lat: state.lat, lng: state.lng } : {}),
       });
     } catch {
       r = { ok: false, status: 0, data: {} };
@@ -269,18 +344,37 @@ function kmBetween(lat1, lng1, lat2, lng2) {
 }
 
 function statusHint(o) {
+  if (o.fulfilment === "delivery") return deliveryHint(o);
   const paper = o.prescription ? " " + t("rx_bring_paper") : "";
   if (o.status === "pending") return t(o.prescription ? "ord_hint_pending_rx" : "ord_hint_pending");
   if (o.status === "confirmed") return t("ord_hint_confirmed", { time: fmtTime(o.hold_until) }) + paper;
   if (o.status === "ready") return t("ord_hint_ready", { time: fmtTime(o.hold_until) }) + paper;
-  if (o.status === "cancelled" && o.cancelled_by === "pharmacy") {
-    return t("ord_by_pharmacy", { reason: t("reason_" + o.cancel_reason) });
+  return cancelHint(o);
+}
+
+// Phase 9: what is happening with a delivery
+function deliveryHint(o) {
+  const name = o.driver ? o.driver.name : "";
+  const paper = o.prescription ? " " + t("del_have_paper") : "";
+  if (o.status === "pending") return t(o.prescription ? "del_hint_pending_rx" : "del_hint_pending");
+  if (o.status === "confirmed" || o.status === "ready") {
+    if (o.driver) return t("del_hint_driver_coming", { name });
+    return t(o.status === "ready" ? "del_hint_waiting_driver" : "del_hint_confirmed");
   }
+  if (o.status === "out_for_delivery") return t("del_hint_on_way", { name, total: money(o.grand_total_iqd) }) + paper;
+  return cancelHint(o);
+}
+
+function cancelHint(o) {
+  if (o.status !== "cancelled") return "";
+  if (o.cancelled_by === "pharmacy") return t("ord_by_pharmacy", { reason: t("reason_" + o.cancel_reason) });
+  if (o.cancelled_by === "driver") return t("ord_by_driver", { reason: t("reason_" + o.cancel_reason) });
   return "";
 }
 
 function orderCard(o) {
   const open = OPEN_STATUSES.includes(o.status);
+  const del = o.fulfilment === "delivery";
   const hint = statusHint(o);
   return `
     <article class="ord ${open ? "" : "closed"} ${o.id === myOrders.highlight ? "new" : ""}">
@@ -292,7 +386,13 @@ function orderCard(o) {
       <ul class="ord-lines">
         ${o.items.map((i) => `<li><span><bdi>${i.quantity} ×</bdi> ${esc(medName(i.medicine))}</span><bdi>${money(i.quantity * i.price_iqd)}</bdi></li>`).join("")}
       </ul>
-      <div class="ord-total"><span>${esc(t("ord_total"))}</span><b><bdi>${money(o.total_iqd)}</bdi></b></div>
+      ${del ? `
+        <p class="del-line"><b>${esc(t("del_to"))}</b> <bdi>${esc(o.address)}</bdi></p>
+        <div class="ord-total sub"><span>${esc(t("del_fee"))}</span><bdi>${money(o.delivery_fee_iqd)}</bdi></div>` : ""}
+      <div class="ord-total"><span>${esc(t("ord_total"))}</span><b><bdi>${money(o.grand_total_iqd)}</bdi></b></div>
+      ${o.driver && open ? `
+        <p class="del-line">${esc(t("del_driver", { name: o.driver.name }))} ·
+          <a href="tel:${esc(o.driver.phone.replace(/\s/g, ""))}" dir="ltr">${esc(o.driver.phone)}</a></p>` : ""}
       ${o.prescription ? `
         <p class="rx-line rx-${o.prescription.status}">
           <span>${esc(t("rx_status_" + o.prescription.status))}</span>
@@ -303,12 +403,12 @@ function orderCard(o) {
         <div class="ord-code">
           <span>${esc(t("ord_code"))}</span>
           <b dir="ltr">${esc(o.pickup_code)}</b>
-          <small>${esc(t("ord_code_hint"))}</small>
+          <small>${esc(t(del ? "del_code_hint" : "ord_code_hint"))}</small>
         </div>
         <div class="ord-actions">
-          <a class="btn-ghost" href="tel:${esc(o.pharmacy.phone.replace(/\s/g, ""))}">${esc(t("call"))}</a>
-          <button class="btn-ghost" type="button" data-dir="${o.id}">${esc(t("directions"))}</button>
-          <button class="link-btn danger" type="button" data-cancel="${o.id}">${esc(t("ord_cancel"))}</button>
+          <a class="btn-ghost" href="tel:${esc(o.pharmacy.phone.replace(/\s/g, ""))}">${esc(t(del ? "del_call_pharmacy" : "call"))}</a>
+          ${del ? "" : `<button class="btn-ghost" type="button" data-dir="${o.id}">${esc(t("directions"))}</button>`}
+          ${o.status === "out_for_delivery" ? "" : `<button class="link-btn danger" type="button" data-cancel="${o.id}">${esc(t("ord_cancel"))}</button>`}
         </div>` : ""}
     </article>`;
 }

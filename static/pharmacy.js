@@ -159,8 +159,10 @@ const ORDER_GROUPS = [
   ["pending", "ph_new_orders"],
   ["confirmed", "ph_active_orders"],
   ["ready", "ph_ready_orders"],
+  ["out_for_delivery", "ph_onway_orders"],     // Phase 9: with a driver
   ["closed", "ph_done_orders"],
 ];
+const OPEN = ["pending", "confirmed", "ready", "out_for_delivery"];
 const RX_MAX_AGE_DAYS = 30;        // same as the server (order_routes.py)
 const rxUrls = new Map();          // order id -> prescription photo (loaded once, kept in memory)
 
@@ -233,6 +235,13 @@ function orderActions(o) {
       <button class="btn-primary" type="button" data-act="ready">${esc(t("ph_mark_ready"))}</button>
       <button class="btn-ghost" type="button" data-act="cancel">${esc(t("cancel"))}</button>
     </div>`;
+  if (o.status === "ready" && o.fulfilment === "delivery") return `
+    <div class="po-actions">
+      ${o.driver
+        ? `<button class="btn-primary" type="button" data-act="handover">${esc(t("ph_handover", { name: o.driver.name }))}</button>`
+        : `<p class="muted small po-wait">${esc(t("ph_waiting_driver"))}</p>`}
+      <button class="btn-ghost" type="button" data-act="cancel">${esc(t("cancel"))}</button>
+    </div>`;
   if (o.status === "ready") return `
     <form class="po-pickup" data-pickup>
       ${rx ? `<label class="chk paper"><input type="checkbox" data-paper> ${esc(t("ph_rx_paper"))}</label>` : ""}
@@ -262,6 +271,7 @@ function rxBlock(o) {
 
 function orderCardPh(o) {
   const c = o.customer;
+  const del = o.fulfilment === "delivery";
   const who = [c.age != null ? t("ph_age", { n: c.age }) : null, c.gender ? t("acc_" + c.gender) : null]
     .filter(Boolean).join(" · ");
   const why = o.status === "cancelled" ? t(o.cancelled_by === "customer" ? "ph_cancelled_by_customer" : "reason_" + o.cancel_reason)
@@ -272,6 +282,7 @@ function orderCardPh(o) {
         <span>
           <span class="ord-status os-${o.status}">${esc(t("os_" + o.status))}</span>
           ${o.prescription ? `<span class="badge rx">${esc(t("rx_short"))}</span>` : ""}
+          ${del ? `<span class="badge del">${esc(t("ful_delivery"))}</span>` : ""}
         </span>
         <span class="muted small">${esc(t("ord_number", { id: o.id }))} · ${esc(ago(o.created_at))}</span>
       </div>
@@ -283,7 +294,13 @@ function orderCardPh(o) {
       <ul class="ord-lines">
         ${o.items.map((i) => `<li><span><bdi>${i.quantity} ×</bdi> ${esc(medName(i.medicine))} <small class="muted"><bdi>${esc(i.medicine.strength)}</bdi></small></span><bdi>${money(i.quantity * i.price_iqd)}</bdi></li>`).join("")}
       </ul>
-      <div class="ord-total"><span>${esc(t("ord_total"))}</span><b><bdi>${money(o.total_iqd)}</bdi></b></div>
+      ${del ? `<div class="ord-total sub"><span>${esc(t("del_fee"))}</span><bdi>${money(o.delivery_fee_iqd)}</bdi></div>` : ""}
+      <div class="ord-total"><span>${esc(t("ord_total"))}</span><b><bdi>${money(o.grand_total_iqd)}</bdi></b></div>
+      ${del ? `<p class="po-note"><b>${esc(t("del_to"))}</b> <bdi>${esc(o.address)}</bdi> <span class="muted">(<bdi>${esc(t("ph_km", { n: (o.delivery_km || 0).toFixed(1) }))}</bdi>)</span></p>` : ""}
+      ${del && o.driver ? `<p class="po-driver">${esc(t(o.status === "delivered" ? "ph_delivered_by" : "del_driver", { name: o.driver.name }))} ·
+          <a href="tel:${esc(o.driver.phone.replace(/\s/g, ""))}" dir="ltr">${esc(o.driver.phone)}</a></p>` : ""}
+      ${o.status === "out_for_delivery" ? `<p class="muted small">${esc(t("ph_onway_since", { time: fmtTime(o.out_for_delivery_at) }))}</p>` : ""}
+      ${o.status === "delivered" && o.paper_collected ? `<p class="rx-line rx-approved">${esc(t("ph_paper_by_driver"))}</p>` : ""}
       ${o.note ? `<p class="po-note"><b>${esc(t("ph_note"))}:</b> <bdi>${esc(o.note)}</bdi></p>` : ""}
       ${rxBlock(o)}
       ${o.hold_until && (o.status === "confirmed" || o.status === "ready")
@@ -336,7 +353,7 @@ function renderOrders() {
     return;
   }
   const saved = saveFormState();
-  const groupOf = (o) => (["pending", "confirmed", "ready"].includes(o.status) ? o.status : "closed");
+  const groupOf = (o) => (OPEN.includes(o.status) ? o.status : "closed");
   box.innerHTML = ORDER_GROUPS.map(([key, title]) => {
     const list = ph.orders.filter((o) => groupOf(o) === key);
     if (!list.length) return "";
@@ -406,6 +423,7 @@ async function orderAction(id, act, body, showError, button) {
     const d = err.data || {};
     if (d.error === "wrong_code") return showError(t("ph_wrong_code"));
     if (d.error === "paper_required") return showError(t("ph_rx_err_paper"));
+    if (d.error === "no_driver") return showError(t("ph_waiting_driver"));
     if (d.error === "rx_check") return showError(rxCheckError(d));
     if (d.error === "rx_already_used") return showError(t("ph_rx_err_used", { id: d.order_id, pharmacy: d.pharmacy }));
     if (d.error === "not_enough") return showError(t("ph_not_enough_stock", { name: medName(d.medicine), n: d.available }));

@@ -13,11 +13,11 @@ from datetime import datetime, timedelta, timezone
 import sqlalchemy as sa
 
 from app import create_app
-from models import db, Pharmacy, Medicine, Stock, Barcode, SearchLog, DEMO_TABLES
+from models import db, Pharmacy, Medicine, Stock, Barcode, SearchLog, Driver, DEMO_TABLES
 from seed_data import (PHARMACIES, MEDICINES, USE_TRANSLATIONS, DEMO_OUT_OF_STOCK,
                        DEMO_ALWAYS_IN_STOCK, BARCODES, STICKER_PRICES, DEMO_PASSWORD,
                        DEMO_SEARCH_DAYS, DEMO_SEARCH_COUNT, DEMO_SEARCH_WEIGHTS, DEMO_NOT_FOUND,
-                       CONTROLLED_INGREDIENTS)
+                       CONTROLLED_INGREDIENTS, DEMO_DRIVERS, DRIVER_PASSWORD)
 
 # Fixed seed so everyone on the team gets the same demo data.
 random.seed(2026)
@@ -105,10 +105,19 @@ def seed(if_empty=False):
 
         searches = seed_searches(pharmacies, medicines)
 
+        # Phase 9: demo delivery drivers (one password hash for all, like the pharmacists)
+        driver_hash = Driver(name="", phone="", username="", password_hash="")
+        driver_hash.set_password(DRIVER_PASSWORD)
+        for name, phone, username in DEMO_DRIVERS:
+            db.session.add(Driver(name=name, phone=phone, username=username,
+                                  password_hash=driver_hash.password_hash))
+
         db.session.commit()
         print(f"Seeded {len(pharmacies)} pharmacies, {len(medicines)} medicines, "
-              f"{Barcode.query.count()} barcodes, {stock_rows} stock rows, {searches} demo searches.")
+              f"{Barcode.query.count()} barcodes, {stock_rows} stock rows, {searches} demo searches, "
+              f"{len(DEMO_DRIVERS)} drivers.")
         print(f"Pharmacist logins (password '{DEMO_PASSWORD}'): " + ", ".join(p.username for p in pharmacies))
+        print(f"Driver logins at /driver (password '{DRIVER_PASSWORD}'): " + ", ".join(d[2] for d in DEMO_DRIVERS))
 
 
 def seed_searches(pharmacies, medicines):

@@ -7,6 +7,8 @@ Phase 4: AI scanner - barcode, text reading (OCR) and visual matching of box pho
 Phase 5: pharmacist dashboard (pharmacy_routes.py) - login, stock, demand insights
 Phase 6: customer accounts (account_routes.py) - phone number + one-time code; PostgreSQL support
 Phase 7: reservations (order_routes.py) - reserve at one pharmacy, pay and collect there
+Phase 8: prescription photo checked by the pharmacist (prescriptions.py)
+Phase 9: delivery by drivers, cash at the door (driver_routes.py, page /driver)
 
 Run:  python app.py   then open http://127.0.0.1:5000
 """
@@ -23,6 +25,7 @@ from seed_data import PHOTO_FOLDERS
 from pharmacy_routes import bp as pharmacy_bp
 from account_routes import bp as account_bp
 from order_routes import bp as order_bp
+from driver_routes import bp as driver_bp
 
 BASE_DIR = os.path.abspath(os.path.dirname(__file__))
 # Set to 1 on the live website (the Dockerfile does this). Locally it stays off.
@@ -82,6 +85,7 @@ def create_app():
     app.register_blueprint(pharmacy_bp)
     app.register_blueprint(account_bp)
     app.register_blueprint(order_bp)
+    app.register_blueprint(driver_bp)
     return app
 
 
