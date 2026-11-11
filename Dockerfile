@@ -16,7 +16,8 @@ ENV HOME=/home/user \
 WORKDIR /home/user/app
 
 COPY --chown=user requirements.txt .
-RUN pip install --no-cache-dir --user -r requirements.txt "gunicorn>=23"
+# psycopg = PostgreSQL driver (Phase 6). Only used when DATABASE_URL is set; the laptop uses SQLite.
+RUN pip install --no-cache-dir --user -r requirements.txt "gunicorn>=23" "psycopg[binary]>=3.2"
 
 COPY --chown=user . .
 

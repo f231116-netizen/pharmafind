@@ -5,6 +5,7 @@ Phase 2: search (typo tolerant, EN/AR/KU), distance sorting, map interface
 Phase 3: alternatives (same active ingredient), medicine info
 Phase 4: AI scanner - barcode, text reading (OCR) and visual matching of box photos
 Phase 5: pharmacist dashboard (pharmacy_routes.py) - login, stock, demand insights
+Phase 6: customer accounts (account_routes.py) - phone number + one-time code; PostgreSQL support
 
 Run:  python app.py   then open http://127.0.0.1:5000
 """
@@ -19,6 +20,7 @@ from models import db, Pharmacy, Medicine, Stock, SearchLog, Barcode, iso_utc
 from search import search_medicines, haversine_km, compare_medicines
 from seed_data import PHOTO_FOLDERS
 from pharmacy_routes import bp as pharmacy_bp
+from account_routes import bp as account_bp
 
 BASE_DIR = os.path.abspath(os.path.dirname(__file__))
 # Set to 1 on the live website (the Dockerfile does this). Locally it stays off.
@@ -43,17 +45,17 @@ except ImportError as e:
 def create_app():
     app = Flask(__name__)
     os.makedirs(os.path.join(BASE_DIR, "instance"), exist_ok=True)
-    app.config["SQLALCHEMY_DATABASE_URI"] = "sqlite:///" + os.path.join(BASE_DIR, "instance", "pharmafind.db")
+    app.config["SQLALCHEMY_DATABASE_URI"], app.config["SQLALCHEMY_ENGINE_OPTIONS"] = database_settings()
     app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
-    # Several people at once: wait up to 15 s for the database instead of failing.
-    app.config["SQLALCHEMY_ENGINE_OPTIONS"] = {"connect_args": {"timeout": 15}}
     app.json.ensure_ascii = False  # keep Arabic/Kurdish readable in JSON
     app.config["MAX_CONTENT_LENGTH"] = 12 * 1024 * 1024  # photo uploads up to 12 MB
-    # Pharmacist logins (Phase 5): sessions are signed with a secret key kept in instance/.
+    # Logins (pharmacists: Phase 5, customers: Phase 6): sessions are signed with a secret key kept in instance/.
     app.config["SECRET_KEY"] = load_secret_key()
     app.config["SESSION_COOKIE_HTTPONLY"] = True
     app.config["SESSION_COOKIE_SAMESITE"] = "Lax"
-    app.config["PERMANENT_SESSION_LIFETIME"] = timedelta(hours=12)
+    # Customers stay logged in for 30 days (pharmacist logins still end after 12 hours,
+    # see PHARMACIST_LOGIN_HOURS in pharmacy_routes.py).
+    app.config["PERMANENT_SESSION_LIFETIME"] = timedelta(days=30)
     if PRODUCTION:
         # The website is https-only. SameSite=None lets the login also work when Hugging Face
         # shows the app inside its own page (an iframe). Forged requests are still blocked by
@@ -75,7 +77,29 @@ def create_app():
 
     register_routes(app)
     app.register_blueprint(pharmacy_bp)
+    app.register_blueprint(account_bp)
     return app
+
+
+def database_settings():
+    """Which database to use, and its connection options.
+
+    On your laptop: nothing to set. It uses the SQLite file instance/pharmafind.db.
+    Online: set DATABASE_URL to a PostgreSQL address. Then accounts are kept when the
+    website restarts (Render's free plan wipes the SQLite file on every restart).
+    """
+    url = os.environ.get("DATABASE_URL", "").strip()
+    if not url:
+        path = os.path.join(BASE_DIR, "instance", "pharmafind.db")
+        # Several people at once: wait up to 15 s for the database instead of failing.
+        return "sqlite:///" + path, {"connect_args": {"timeout": 15}}
+    # Hosts give "postgres://..." or "postgresql://...". Tell SQLAlchemy to use the psycopg 3 driver.
+    for prefix in ("postgres://", "postgresql://"):
+        if url.startswith(prefix):
+            url = "postgresql+psycopg://" + url[len(prefix):]
+            break
+    # pre_ping: test the connection before using it (free databases close idle connections).
+    return url, {"pool_pre_ping": True, "pool_recycle": 280, "pool_size": 5, "max_overflow": 5}
 
 
 def load_secret_key():

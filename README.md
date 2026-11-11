@@ -405,3 +405,72 @@ Try it once at home first (the first run downloads cloudflared; allow it if Wind
 
 - `/` the app · `/pharmacy` pharmacist dashboard (shifa / pharma123) · `/share` QR code poster ·
   `/check` data table · `/healthz` health check
+
+
+---
+
+# Phase 6 — Customer accounts (branch `phase6`)
+
+Built **after** the showcase plan, on its own Git branch. The `main` branch (the showcase
+version, and what Render runs) does not have it.
+
+## What's new
+
+- A **Log in** button in the header (just a person icon on phones).
+- Log in with your **mobile number + a 6-digit code**. No password. The first login makes the account,
+  so "log in" and "sign up" are the same thing. New accounts are asked for a name (optional).
+- **Guests keep everything**: search, scan, alternatives and info need no account.
+  The account is for ordering medicines (Phase 7).
+- Works in Kurdish, Arabic and English, and accepts Kurdish/Arabic digits (٠٧٧٠… or ۰۷۷۰…).
+
+## Try it
+
+1. `python app.py`, open http://127.0.0.1:5000, click **Log in**.
+2. Type a number like `0770 123 4567` → **Send me a code**.
+3. There is no SMS yet ("test mode"): the code is shown in a **yellow box** on the page and
+   printed in the terminal. Type it; you are logged in as soon as the 6th digit is typed.
+
+## How it works (`account_routes.py`)
+
+| API | What it does |
+|---|---|
+| `POST /api/account/send-code` `{phone}` | makes a random 6-digit code and "sends" it |
+| `POST /api/account/verify` `{phone, code}` | checks it and logs in (makes the account if new) |
+| `GET /api/account/me` | who is logged in (`{"user": null}` for guests) |
+| `PUT /api/account/me` `{name}` | change your name |
+| `POST /api/account/logout` | log out |
+
+- New tables: `users` (phone, name, verified, created_at, last_login_at) and `login_codes`.
+- Only a **hash** of each code is saved (HMAC-SHA256 with the app's secret key).
+- A code works for **5 minutes**, **once**, and dies after **5 wrong tries**.
+- Limits against SMS spam: 1 code per number per minute, 5 per number per hour, 20 per internet address per hour.
+- Customers stay logged in for 30 days; pharmacist logins still end after 12 hours.
+  Logging in or out as a pharmacist does not log the customer out (and the other way round).
+- `python seed.py` now resets **only the demo tables**. Accounts are kept.
+
+## Database: SQLite on the laptop, PostgreSQL online
+
+- With nothing set, it uses `instance/pharmafind.db` (SQLite) like before.
+- Set **`DATABASE_URL`** to a PostgreSQL address and it uses that instead. This matters online:
+  Render's free plan wipes the SQLite file on every restart, so accounts would disappear.
+  The Dockerfile installs the PostgreSQL driver (`psycopg`); the laptop doesn't need it.
+- Which PostgreSQL host to use is decided when Phase 6 goes online (after the showcase).
+
+## Settings
+
+| Setting | Meaning |
+|---|---|
+| `DATABASE_URL` | PostgreSQL address. Empty = SQLite file. |
+| `OTP_PROVIDER` | how codes are sent. Only `console` exists today (printed in the terminal). |
+| `OTP_SHOW_CODE=1` | also show the code on the page on the live website. **Demo only, never with real users.** |
+
+## Still to do in Phase 6
+
+- Pick and connect a real **SMS or WhatsApp** provider (costs money per message) in `deliver()`.
+- Choose the PostgreSQL host and test the site against it.
+
+## Before the showcase (24 Nov)
+
+Switch back to the showcase version, or `start_showcase.bat` will run this branch:
+
+    git checkout main

@@ -1,13 +1,14 @@
-"""Reset the database and fill it with demo data.
+"""Reset the demo data (pharmacies, medicines, barcodes, stock, search history).
 
 Run:  python seed.py
-WARNING: this deletes everything in the database and rebuilds it.
+WARNING: this deletes the demo tables and rebuilds them.
+Customer accounts (users, login_codes) are NOT touched (Phase 6).
 """
 import random
 from datetime import datetime, timedelta, timezone
 
 from app import create_app
-from models import db, Pharmacy, Medicine, Stock, Barcode, SearchLog
+from models import db, Pharmacy, Medicine, Stock, Barcode, SearchLog, DEMO_TABLES
 from seed_data import (PHARMACIES, MEDICINES, USE_TRANSLATIONS, DEMO_OUT_OF_STOCK,
                        DEMO_ALWAYS_IN_STOCK, BARCODES, STICKER_PRICES, DEMO_PASSWORD,
                        DEMO_SEARCH_DAYS, DEMO_SEARCH_COUNT, DEMO_SEARCH_WEIGHTS, DEMO_NOT_FOUND)
@@ -30,7 +31,8 @@ PRICE_RANGE = {
 def seed():
     app = create_app()
     with app.app_context():
-        db.drop_all()
+        # Only the demo tables are deleted. Accounts stay.
+        db.metadata.drop_all(bind=db.engine, tables=DEMO_TABLES)
         db.create_all()
 
         pharmacies = []

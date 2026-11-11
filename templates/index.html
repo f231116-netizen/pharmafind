@@ -96,6 +96,59 @@
     </div>
   </div>
 
+  <!-- Phase 6: customer login with phone number + one-time code (guests don't need it) -->
+  <div id="account-modal" class="modal" hidden>
+    <div class="modal-card small acc-card">
+      <div class="acc-head">
+        <h3 id="acc-title"></h3>
+        <button class="icon-btn" type="button" data-close data-i18n-label="close">&times;</button>
+      </div>
+
+      <!-- Step 1: phone number -->
+      <form id="acc-phone-step" class="acc-step" novalidate>
+        <p class="muted" data-i18n="acc_why"></p>
+        <label class="acc-field">
+          <span data-i18n="acc_phone"></span>
+          <input id="acc-phone" type="tel" inputmode="tel" autocomplete="tel" dir="ltr"
+                 placeholder="0770 123 4567" maxlength="20">
+          <small class="muted" data-i18n="acc_phone_hint"></small>
+        </label>
+        <p id="acc-phone-error" class="acc-error" role="alert" hidden></p>
+        <button class="btn-primary full" type="submit" data-i18n="acc_send_code"></button>
+      </form>
+
+      <!-- Step 2: the code from the SMS -->
+      <form id="acc-code-step" class="acc-step" novalidate hidden>
+        <p id="acc-sent-to"></p>
+        <p id="acc-test-code" class="acc-test" hidden></p>
+        <label class="acc-field">
+          <span data-i18n="acc_code"></span>
+          <input id="acc-code" class="acc-code-input" type="text" inputmode="numeric"
+                 autocomplete="one-time-code" dir="ltr" maxlength="6" placeholder="••••••">
+        </label>
+        <p id="acc-code-error" class="acc-error" role="alert" hidden></p>
+        <button class="btn-primary full" type="submit" data-i18n="acc_verify"></button>
+        <div class="acc-links">
+          <button id="acc-change" class="link-btn" type="button" data-i18n="acc_change_number"></button>
+          <button id="acc-resend" class="link-btn" type="button"></button>
+        </div>
+      </form>
+
+      <!-- Step 3: your account (new accounts are asked for a name) -->
+      <form id="acc-profile-step" class="acc-step" novalidate hidden>
+        <p id="acc-phone-line" class="acc-phone-line"></p>
+        <label class="acc-field">
+          <span data-i18n="acc_name"></span>
+          <input id="acc-name" type="text" maxlength="80" autocomplete="name">
+        </label>
+        <p class="acc-soon" data-i18n="acc_orders_soon"></p>
+        <button class="btn-primary full" type="submit" data-i18n="acc_save"></button>
+        <button id="acc-skip" class="btn-ghost full" type="button" data-i18n="acc_skip"></button>
+        <button id="acc-logout" class="btn-ghost full" type="button" data-i18n="acc_logout"></button>
+      </form>
+    </div>
+  </div>
+
   <div id="toast" class="toast" role="status" hidden></div>
 
   <header class="top">
@@ -108,6 +161,10 @@
     </div>
     <div class="top-actions">
       <button id="lang-btn" class="lang-btn" type="button"></button>
+      <button id="account-btn" class="account-btn" type="button">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/></svg>
+        <span id="account-label"></span>
+      </button>
       <a class="check-link" href="/pharmacy" data-i18n="ph_link"></a>
       <a class="check-link" href="/check" data-i18n="data"></a>
     </div>
@@ -154,5 +211,6 @@
   <script src="{{ url_for('static', filename='i18n.js') }}"></script>
   <script src="{{ url_for('static', filename='app.js') }}"></script>
   <script src="{{ url_for('static', filename='scan.js') }}"></script>
+  <script src="{{ url_for('static', filename='account.js') }}"></script>
 </body>
 </html>

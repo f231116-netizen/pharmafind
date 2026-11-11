@@ -6,6 +6,10 @@ Tables:
   barcodes    - barcodes printed on medicine boxes
   stock       - which pharmacy has which medicine, at what price
   search_log  - every search (what, how, where), for the pharmacist dashboard
+  users       - customer accounts, logged in with phone number + one-time code (Phase 6)
+  login_codes - the one-time codes sent to phones (only a hash is stored)  (Phase 6)
+
+seed.py resets only the demo tables. users and login_codes are never wiped by it.
 """
 from datetime import datetime, timezone
 
@@ -154,3 +158,46 @@ class SearchLog(db.Model):
     latitude = db.Column(db.Float)      # where the user was (approximate), for "searches near you"
     longitude = db.Column(db.Float)
     created_at = db.Column(db.DateTime(timezone=True), default=utcnow, index=True)
+
+
+# ---------------------------------------------------------------- Phase 6: customer accounts
+class User(db.Model):
+    """A customer. There is no password: they log in with a one-time code sent to their phone.
+    Guests don't need an account; it is only needed to order (Phase 7)."""
+    __tablename__ = "users"
+
+    id = db.Column(db.Integer, primary_key=True)
+    phone = db.Column(db.String(20), unique=True, nullable=False, index=True)  # +9647701234567
+    name = db.Column(db.String(80))
+    verified = db.Column(db.Boolean, default=False, nullable=False)  # True once a code was confirmed
+    created_at = db.Column(db.DateTime(timezone=True), default=utcnow, nullable=False)
+    last_login_at = db.Column(db.DateTime(timezone=True))
+
+    def to_dict(self):
+        return {
+            "id": self.id,
+            "phone": self.phone,
+            "name": self.name,
+            "verified": self.verified,
+            "created_at": iso_utc(self.created_at),
+        }
+
+
+class LoginCode(db.Model):
+    """A one-time login code. We keep only a hash of it (like a password), when it expires,
+    and how many wrong tries were made, so nobody can guess it."""
+    __tablename__ = "login_codes"
+
+    id = db.Column(db.Integer, primary_key=True)
+    phone = db.Column(db.String(20), nullable=False, index=True)
+    code_hash = db.Column(db.String(64), nullable=False)
+    ip = db.Column(db.String(45))            # who asked for it (limits how many codes one person can request)
+    created_at = db.Column(db.DateTime(timezone=True), default=utcnow, nullable=False, index=True)
+    expires_at = db.Column(db.DateTime(timezone=True), nullable=False)
+    attempts = db.Column(db.Integer, default=0, nullable=False)
+    used = db.Column(db.Boolean, default=False, nullable=False)
+
+
+# Tables that hold demo data. seed.py deletes and rebuilds only these.
+DEMO_TABLES = [Pharmacy.__table__, Medicine.__table__, Barcode.__table__, Stock.__table__,
+               SearchLog.__table__]

@@ -386,6 +386,48 @@ button { font: inherit; cursor: pointer; }
   .scan-view { aspect-ratio: auto; flex: 1; max-height: none; min-height: 45vh; }
 }
 
+/* ---------- Phase 6: customer accounts ---------- */
+.account-btn {
+  display: inline-flex; align-items: center; gap: 6px; max-width: 170px;
+  background: rgba(255,255,255,.15); color: #fff; border: 1px solid rgba(255,255,255,.4);
+  padding: 6px 14px; border-radius: 999px; font-size: .9rem; font-weight: 600;
+}
+.account-btn:hover { background: rgba(255,255,255,.25); }
+.account-btn.on { background: #fff; color: var(--brand-dark); border-color: #fff; }
+.account-btn svg { width: 18px; height: 18px; flex: none; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; }
+.account-btn span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+.acc-card { gap: 14px; }
+.acc-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.acc-head h3 { margin: 0; }
+.acc-step { display: grid; gap: 12px; }
+.acc-step p { margin: 0; }
+.acc-field { display: grid; gap: 6px; font-size: .88rem; font-weight: 600; }
+.acc-field small { font-weight: 400; }
+.acc-field input {
+  width: 100%; padding: 12px 14px; border: 2px solid var(--line); border-radius: 12px;
+  font: inherit; font-size: 1.05rem; color: var(--ink); background: var(--card);
+}
+.acc-field input:focus { outline: none; border-color: var(--brand); box-shadow: 0 0 0 4px var(--brand-soft); }
+[dir="rtl"] .acc-field input[dir="ltr"]:not(.acc-code-input) { text-align: right; }   /* digits stay LTR, but sit on the right */
+.acc-field input.acc-code-input {
+  font-size: 1.7rem !important; letter-spacing: .45em; text-align: center; font-variant-numeric: tabular-nums;
+  padding-inline-start: calc(14px + .45em);   /* balance the letter-spacing after the last digit */
+}
+.acc-error { color: var(--warn); background: var(--warn-soft); padding: 8px 12px; border-radius: 10px; font-size: .88rem; }
+.acc-test {
+  background: #fff6dc; color: #946200; border: 1px dashed #e0b84a;
+  padding: 8px 12px; border-radius: 10px; font-size: .9rem; font-weight: 600;
+}
+.acc-links { display: flex; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+.link-btn { background: none; border: 0; padding: 4px 0; color: var(--brand); font-weight: 600; font-size: .88rem; }
+.link-btn:hover:not(:disabled) { text-decoration: underline; }
+.link-btn:disabled { color: var(--muted); cursor: default; }
+.acc-phone-line { font-weight: 600; }
+.acc-soon { background: var(--brand-soft); color: var(--brand-dark); padding: 10px 12px; border-radius: 10px; font-size: .88rem; }
+.btn-primary.full { width: 100%; }
+.btn-primary:disabled, .btn-ghost:disabled { opacity: .6; cursor: default; }
+
 /* Small phones: keep the header on one line */
 @media (max-width: 600px) {
   .top .tag { display: none; }
@@ -394,6 +436,23 @@ button { font: inherit; cursor: pointer; }
   .logo { width: 36px; height: 36px; font-size: 26px; flex: none; }
   .top h1 { font-size: 1.2rem; }
   .lang-btn { padding: 5px 10px; font-size: .82rem; white-space: nowrap; }
+  /* account button = just the person icon on phones (the pop-up title says what it is) */
+  .account-btn { width: 34px; height: 34px; padding: 0; justify-content: center; flex: none; }
+  .account-btn span { display: none; }
+  .top-actions { gap: 10px; }
+  /* never let the title run under the buttons: cut it with "…" on very small screens */
+  .brand > div { min-width: 0; }
+  .top h1 { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+}
+/* Narrow phones (iPhone SE/mini, most Android): a bit tighter so everything fits */
+@media (max-width: 420px) {
+  .top { padding-inline: 12px; gap: 8px; }
+  .top-actions { gap: 8px; }
+  /* "For pharmacies" on two lines, as wide as its longest word */
+  .top-actions a[href="/pharmacy"] { width: min-content; white-space: normal; line-height: 1.15; text-align: center; font-size: .78rem; }
+  .account-btn { width: 32px; height: 32px; }
+  .top h1 { font-size: 1.1rem; }
+  .brand { gap: 8px; }
 }
 
 /* iPhone Safari zooms into any text box smaller than 16px: keep them at 16px on phones */

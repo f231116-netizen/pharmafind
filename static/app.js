@@ -52,6 +52,7 @@ function setLang(lang, remember = true) {
   if (state.lastData) renderResults(state.lastData);
   if (!$("map-modal").hidden) renderMapFoot();
   if (window.renderScanText) window.renderScanText();
+  if (window.renderAccount) window.renderAccount();
 }
 
 function openLangPicker() { $("lang-picker").hidden = false; }
@@ -98,6 +99,7 @@ function closeModal(el) {
   el.hidden = true;
   if (el.id === "map-modal") onMapClosed();
   if (el.id === "scan-modal" && window.onScanClosed) window.onScanClosed();
+  if (el.id === "account-modal" && window.onAccountClosed) window.onAccountClosed();
 }
 document.querySelectorAll(".modal").forEach((m) => {
   m.addEventListener("click", (e) => {

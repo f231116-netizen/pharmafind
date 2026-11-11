@@ -26,11 +26,17 @@ bp = Blueprint("pharmacy", __name__)
 
 LOCAL_TZ = timezone(timedelta(hours=3))   # Iraq: UTC+3, no daylight saving
 LOW_STOCK = 5                             # this many boxes or fewer = "low stock"
+PHARMACIST_LOGIN_HOURS = 12               # pharmacist logins end after this (customer logins last longer)
 
 
 def current_pharmacy():
     pid = session.get("pharmacy_id")
-    return db.session.get(Pharmacy, pid) if pid else None
+    if not pid:
+        return None
+    if datetime.now(timezone.utc).timestamp() - session.get("pharmacy_login_at", 0) > PHARMACIST_LOGIN_HOURS * 3600:
+        session.pop("pharmacy_id", None)
+        return None
+    return db.session.get(Pharmacy, pid)
 
 
 def login_required(view):
@@ -74,15 +80,18 @@ def login():
     ph = Pharmacy.query.filter_by(username=username).first() if username else None
     if not ph or not ph.check_password(password):
         return jsonify({"error": "wrong_login"}), 401
-    session.clear()
+    # Only the pharmacist part of the session changes, so a customer login (Phase 6)
+    # in the same browser is not thrown away.
     session["pharmacy_id"] = ph.id
+    session["pharmacy_login_at"] = datetime.now(timezone.utc).timestamp()
     session.permanent = True
     return jsonify({"pharmacy": ph.to_dict()})
 
 
 @bp.route("/api/pharmacy/logout", methods=["POST"])
 def logout():
-    session.clear()
+    session.pop("pharmacy_id", None)
+    session.pop("pharmacy_login_at", None)
     return jsonify({"ok": True})
 
 
