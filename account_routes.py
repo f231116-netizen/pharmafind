@@ -14,11 +14,12 @@ to check that a medicine is right for this person. user.profile_complete says if
       POST /api/account/logout
 
 How the code reaches the phone (the OTP_PROVIDER setting):
-  console  (default) the code is printed in the terminal (the black window).
-           For testing: on your laptop the page also shows it in a yellow "test mode" box.
-           On the live website (PHARMAFIND_PRODUCTION=1) it is NOT shown on the page,
-           unless you also set OTP_SHOW_CODE=1 (only for a demo, never with real users).
-  Later: an SMS or WhatsApp provider. Add it in deliver() below.
+  console  (default) = TEST MODE, no SMS service connected yet. The code is printed in the
+           terminal AND shown on the page in a yellow "Test mode" box, on the laptop and on the
+           live website. So anyone can log in with any number: fine for a demo with invented data,
+           NOT for real customers.
+  Later: an SMS or WhatsApp provider. Add it in deliver() below and set OTP_PROVIDER; from then on
+         the code is only sent to the phone and never shown on the page.
 
 Security:
   - the code is random (Python's secrets module), 6 digits, works for 5 minutes, and only once
@@ -43,13 +44,13 @@ from models import db, User, LoginCode, GENDERS, utcnow
 
 bp = Blueprint("account", __name__)
 
-PRODUCTION = os.environ.get("PHARMAFIND_PRODUCTION") == "1"
 PROVIDERS = ("console",)
 OTP_PROVIDER = os.environ.get("OTP_PROVIDER", "console").strip().lower()
 if OTP_PROVIDER not in PROVIDERS:
     print(f"[PharmaFind] Unknown OTP_PROVIDER '{OTP_PROVIDER}', using 'console' instead.", flush=True)
     OTP_PROVIDER = "console"
-SHOW_CODE_ON_PAGE = OTP_PROVIDER == "console" and (not PRODUCTION or os.environ.get("OTP_SHOW_CODE") == "1")
+# No SMS service yet -> test mode: show the code on the page, or nobody could log in.
+SHOW_CODE_ON_PAGE = OTP_PROVIDER == "console"
 
 CODE_DIGITS = 6
 CODE_MINUTES = 5          # a code works for this long

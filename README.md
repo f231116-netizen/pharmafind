@@ -409,10 +409,10 @@ Try it once at home first (the first run downloads cloudflared; allow it if Wind
 
 ---
 
-# Phase 6 — Customer accounts (branch `phase6`)
+# Phase 6 — Customer accounts
 
-Built **after** the showcase plan, on its own Git branch. The `main` branch (the showcase
-version, and what Render runs) does not have it.
+Phases 6–9 were built on the `phase6` branch and **joined into `main` on 12 Nov 2026**, so they are
+on the live website too. The older showcase version (Phases 1–5 only) is kept as the `showcase` branch.
 
 ## What's new
 
@@ -455,15 +455,15 @@ version, and what Render runs) does not have it.
 - Set **`DATABASE_URL`** to a PostgreSQL address and it uses that instead. This matters online:
   Render's free plan wipes the SQLite file on every restart, so accounts would disappear.
   The Dockerfile installs the PostgreSQL driver (`psycopg`); the laptop doesn't need it.
-- Which PostgreSQL host to use is decided when Phase 6 goes online (after the showcase).
+- Not set up yet. On Render (free plan, SQLite) accounts and reservations are **reset whenever the
+  server restarts or sleeps**. Fine for a demo; a PostgreSQL host is needed before real use.
 
 ## Settings
 
 | Setting | Meaning |
 |---|---|
 | `DATABASE_URL` | PostgreSQL address. Empty = SQLite file. |
-| `OTP_PROVIDER` | how codes are sent. Only `console` exists today (printed in the terminal). |
-| `OTP_SHOW_CODE=1` | also show the code on the page on the live website. **Demo only, never with real users.** |
+| `OTP_PROVIDER` | how codes are sent. Only `console` exists today = **test mode**: the code is printed in the terminal **and shown on the page** (laptop and live website). Anyone can log in with any number: fine for the demo with invented data, **not for real customers**. Connecting an SMS service ends test mode. |
 
 ## Still to do in Phase 6
 
@@ -473,7 +473,7 @@ version, and what Render runs) does not have it.
 
 ---
 
-# Phase 7 — Reserve and pick up (branch `phase6`)
+# Phase 7 — Reserve and pick up
 
 ## What's new
 
@@ -535,7 +535,7 @@ wins, and the stock stays correct.
 
 ---
 
-# Phase 8 — Prescription check (branch `phase6`)
+# Phase 8 — Prescription check
 
 The app **can't prove** a prescription is real. The **pharmacist** checks it; the app carries the proof
 to them, makes sure the check really happens, and stops the same prescription being used twice.
@@ -606,7 +606,7 @@ The "looks the same" check is only a warning, because prescriptions from the sam
 
 ---
 
-# Phase 9 — Delivery by drivers, cash at the door (branch `phase6`)
+# Phase 9 — Delivery by drivers, cash at the door
 
 Like Talabat: a driver brings the reservation to the customer's home. The checks happen at the door,
 and payment is **cash** (no online payment). Prescription medicines can be delivered too: the driver
@@ -674,8 +674,9 @@ Log in at http://127.0.0.1:5000/driver. The page is made for phones and updates 
 
 ---
 
-## Before the showcase (24 Nov)
+## Versions (branches)
 
-Switch back to the showcase version, or `start_showcase.bat` will run this branch:
-
-    git checkout main
+- **`main`**: everything (Phases 1–9). This is what the live website and `start_showcase.bat` run.
+- **`showcase`**: the older version with Phases 1–5 only, saved on 12 Nov 2026 in case you need it.
+  To use it: `git checkout showcase`. To come back: `git checkout main`.
+  (The live website always runs `main`.)
