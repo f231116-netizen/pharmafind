@@ -245,7 +245,14 @@
     </section>
   </main>
 
-  <footer class="foot" data-i18n="footer"></footer>
+  <footer class="foot">
+    <p data-i18n="footer"></p>
+    <!-- Phase 9: entrances for the people who work with PharmaFind -->
+    <nav class="foot-links">
+      <a href="/pharmacy" data-i18n="ph_link"></a>
+      <a href="/driver" data-i18n="drv_link"></a>
+    </nav>
+  </footer>
 
   <script>
     window.PF_DEFAULT = { lat: {{ default_lat }}, lng: {{ default_lng }} };

@@ -181,6 +181,9 @@ button { font: inherit; cursor: pointer; }
 .none-box { padding: 24px 20px; color: var(--muted); }
 
 .foot { text-align: center; color: var(--muted); font-size: .8rem; padding: 0 20px 18px; }
+.foot p { margin: 0 0 10px; }
+.foot-links { display: flex; justify-content: center; gap: 18px; flex-wrap: wrap; }
+.foot-links a { color: var(--brand); font-weight: 600; font-size: .88rem; }
 
 /* Map markers */
 .you-dot {
