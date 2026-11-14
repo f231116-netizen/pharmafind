@@ -153,6 +153,8 @@ def main():
         say("  Phones can open:   " + public)
         say("  QR code page:      " + public + "/share")
         say("  Pharmacist login:  " + public + "/pharmacy   (shifa / pharma123)")
+        say("  Driver login:      " + public + "/driver     (aram / driver123)")
+        say("  Customer login:    any phone number, the code shows on the page (test mode)")
     else:
         say("  Could not open a public address (no internet?).")
         say("  PharmaFind still works on this laptop:  http://localhost:%d" % PORT)
