@@ -1,8 +1,10 @@
 """Reset the demo data (pharmacies, medicines, barcodes, stock, search history, reservations).
 
-Run:  python seed.py              delete the demo tables and rebuild them
-      python seed.py --if-empty   only fill the database if it has no pharmacies yet
-                                  (used online with PostgreSQL, so a restart doesn't wipe it)
+Run:  python seed.py              delete the demo tables and rebuild them (reset_demo.bat does this)
+      python seed.py --if-empty   KEEP everything that is there; only fill what is missing:
+                                  an empty database gets all the demo data, a database without
+                                  drivers gets the demo drivers. Used by start_showcase.bat
+                                  (so closing and opening it keeps all data) and online with PostgreSQL.
 Customer accounts (users, login_codes) are NOT touched (Phase 6).
 Reservations ARE deleted: they belong to the demo pharmacies (Phase 7).
 """
@@ -39,11 +41,26 @@ def is_controlled(ingredient):
     return any(part.strip() in CONTROLLED_INGREDIENTS for part in ingredient.split("+"))
 
 
+def add_demo_drivers():
+    """Phase 9: demo delivery drivers (one password hash for all, like the pharmacists)."""
+    driver_hash = Driver(name="", phone="", username="", password_hash="")
+    driver_hash.set_password(DRIVER_PASSWORD)
+    for name, phone, username in DEMO_DRIVERS:
+        db.session.add(Driver(name=name, phone=phone, username=username,
+                              password_hash=driver_hash.password_hash))
+
+
 def seed(if_empty=False):
     app = create_app()
     with app.app_context():
         if if_empty and sa.inspect(db.engine).has_table("pharmacies") and Pharmacy.query.count():
-            print("The database already has data. Nothing changed (--if-empty).")
+            # Keep everything. Only add what an older database is missing (drivers came in Phase 9).
+            if Driver.query.count() == 0:
+                add_demo_drivers()
+                db.session.commit()
+                print(f"Kept all data. Added the {len(DEMO_DRIVERS)} demo drivers (they were missing).")
+            else:
+                print("Kept all data (reservations, accounts, stock). Nothing was reset.")
             return
         # Only the demo tables are deleted. Accounts stay.
         db.metadata.drop_all(bind=db.engine, tables=DEMO_TABLES)
@@ -105,12 +122,7 @@ def seed(if_empty=False):
 
         searches = seed_searches(pharmacies, medicines)
 
-        # Phase 9: demo delivery drivers (one password hash for all, like the pharmacists)
-        driver_hash = Driver(name="", phone="", username="", password_hash="")
-        driver_hash.set_password(DRIVER_PASSWORD)
-        for name, phone, username in DEMO_DRIVERS:
-            db.session.add(Driver(name=name, phone=phone, username=username,
-                                  password_hash=driver_hash.password_hash))
+        add_demo_drivers()
 
         db.session.commit()
         print(f"Seeded {len(pharmacies)} pharmacies, {len(medicines)} medicines, "

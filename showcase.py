@@ -2,7 +2,9 @@
 
 Double-click start_showcase.bat  (or run:  python showcase.py)
 
-  1. resets the demo data (same as python seed.py)
+  1. loads the saved data. Nothing is reset: reservations, accounts, prescriptions and stock
+     changes are kept when you close and open it again (python seed.py --if-empty).
+     The very first time it makes the demo data. To start over, use reset_demo.bat.
   2. starts PharmaFind with a real web server (waitress) on http://localhost:5000
   3. opens a free Cloudflare "quick tunnel": a temporary https:// address for phones
      (https is needed for phone cameras). No account needed.
@@ -131,8 +133,8 @@ def main():
     say("=" * 60)
     ensure_waitress()
 
-    say("1/4  Resetting the demo data...")
-    subprocess.check_call([sys.executable, "seed.py"])
+    say("1/4  Loading the saved data (nothing is reset)...")
+    subprocess.check_call([sys.executable, "seed.py", "--if-empty"])
 
     say(f"2/4  Starting PharmaFind on http://localhost:{PORT} ...")
     start_server()

@@ -337,7 +337,7 @@ password **`pharma123`** (set in `seed_data.py` → `DEMO_PASSWORD`).
 2. In the dashboard, log in as **shifa** → Missed demand shows *Gasec · 23 searches* → **Add to stock** → Save.
 3. Back in the app, search Gasec again → Shifa Pharmacy has it, "updated just now".
 
-Run `python seed.py` before the showcase to reset everything (Gasec sold out again).
+To reset everything (Gasec sold out again), double-click `reset_demo.bat` (or run `python seed.py`).
 
 
 ---
@@ -390,7 +390,9 @@ Good to know (free plan):
 ## C. Showcase day: fast version from the laptop
 
 Double-click **`start_showcase.bat`** in the project folder. It:
-1. resets the demo data,
+1. loads the **saved** data. Nothing is reset: accounts, reservations, prescriptions, deliveries and
+   stock/price changes are **kept** when you close it and open it again (the data is in
+   `instance/pharmafind.db`). The very first time it makes the demo data,
 2. starts PharmaFind with a real server (waitress) at `http://localhost:5000`,
 3. opens a free Cloudflare quick tunnel (downloads `cloudflared` into `tools/` the first time),
 4. opens the app and the **QR code page** for that run in your browser.
@@ -400,6 +402,16 @@ Visitors scan the QR code on your screen and use the fast laptop version on thei
 The tunnel address changes every start, so always show the QR page from the current run.
 If the venue internet fails, the app keeps working on the laptop.
 Try it once at home first (the first run downloads cloudflared; allow it if Windows asks).
+
+**Start over:** close the black window, then double-click **`reset_demo.bat`** and type `YES`.
+It deletes all reservations, prescriptions and stock changes and makes fresh demo data (including a
+fresh search history for the pharmacist charts). Customer accounts are kept.
+
+Good to know:
+- A reservation still expires by the rules (24 hours after confirming if not collected). That is a
+  rule of the app, not a reset.
+- The **live website** on Render (free plan) still resets when its server restarts or sleeps.
+  Only the laptop keeps everything. Keeping data online needs PostgreSQL (`DATABASE_URL`).
 
 ## Pages
 
